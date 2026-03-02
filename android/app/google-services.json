@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "972163901927",
+    "project_id": "shcare-c3951",
+    "storage_bucket": "shcare-c3951.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:972163901927:android:072f14c1ea0eea864eb542",
+        "android_client_info": {
+          "package_name": "com.example.shcare_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsMmGoCOv26_WM_1Pg9-Tm_ZaOYFux_Mo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
