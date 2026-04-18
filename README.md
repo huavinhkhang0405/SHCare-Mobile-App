@@ -212,6 +212,29 @@ Trách nhiệm:
 
 # 4. Quy trình Git
 
+## Bắt đầu công việc mỗi ngày (bắt buộc)
+
+Để tránh lệch code giữa các thành viên, trước khi tạo nhánh mới hãy luôn làm đúng 3 bước sau:
+
+1. Luôn chuyển về nhánh `develop`
+
+    git checkout develop
+
+2. Cập nhật code mới nhất từ server về máy (rất quan trọng)
+
+    git pull origin develop
+
+3. Tạo nhánh feature mới và chuyển sang nhánh đó
+
+    git checkout -b feature/<tên-nhánh>
+
+Ví dụ đặt tên nhánh dễ hiểu:
+
+    feature/ui-login
+    feature/firebase-user-profile
+    feature/gemini-chat-box
+    feature/provider-auth-flow
+
 ## Tạo nhánh tính năng
 
 Ví dụ:
