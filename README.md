@@ -2,105 +2,134 @@
 
 ## 1. Cấu trúc dự án
 
-    lib
-    │
-    ├── core
-    │   └── config
-    │       └── firebase_options.dart
-    │
-    ├── models
-    │
-    ├── providers
-    │
-    ├── screens
-    │
-    ├── services
-    │
-    ├── utils
-    │
-    ├── app.dart
-    └── main.dart
+```text
+lib
+├── core
+│   ├── config
+│   │   └── firebase_options.dart
+│   ├── constants
+│   │   └── app_strings.dart
+│   └── theme
+│       └── app_colors.dart
+├── models
+│   └── user_model.dart
+├── providers
+│   └── auth_provider.dart
+├── repositories
+├── screens
+│   └── login_screen.dart
+├── services
+│   ├── ai
+│   │   └── gemini_service.dart
+│   └── firebase
+│       └── firestore_service.dart
+├── utils
+│   └── date_formatter.dart
+├── app.dart
+└── main.dart
+```
 
 ### Vai trò các thư mục
 
-  Thư mục                Mục đích
-  ---------------------- ----------------------------------------------
-  `screens/`             Các màn hình giao diện của ứng dụng
-  `services/`            Gọi API, xử lý Firebase, tích hợp AI
-  `providers/`           Quản lý trạng thái
-  `models/`              Cấu trúc dữ liệu ứng dụng
-  `utils/`               Hàm tiện ích
-  `core/`                Cấu hình hệ thống
-  `main.dart`            Điểm khởi chạy ứng dụng
-  `app.dart`             Cấu hình giao diện chính
+| Thư mục | Mục đích |
+| --- | --- |
+| `core/config/` | Cấu hình hệ thống (Firebase options, cấu hình nền tảng) |
+| `core/constants/` | Khai báo hằng số dùng chung toàn ứng dụng |
+| `core/theme/` | Định nghĩa màu sắc, theme và style dùng lại |
+| `models/` | Cấu trúc dữ liệu ứng dụng (Model) |
+| `providers/` | Quản lý trạng thái và điều phối dữ liệu cho UI |
+| `repositories/` | Lớp trung gian truy xuất dữ liệu giữa provider và service |
+| `screens/` | Các màn hình giao diện của ứng dụng |
+| `services/ai/` | Tích hợp AI/Gemini và xử lý prompt |
+| `services/firebase/` | Tương tác Firebase/Firestore |
+| `utils/` | Hàm tiện ích dùng chung |
+| `main.dart` | Điểm khởi chạy ứng dụng, khởi tạo các phần cần thiết |
+| `app.dart` | Cấu hình MaterialApp, routes và theme tổng |
 
 ------------------------------------------------------------------------
 
-# 2. Phân chia nhiệm vụ
+# 2. Phân chia nhiệm vụ cho nhóm 4 người (làm song song)
 
-## 1️⃣ UI / UX
+## Nguyên tắc để 4 người làm song song, không phải chờ nhau
+
+1. Thống nhất trước cách các phần nói chuyện với nhau (đầu vào, đầu ra của từng chức năng).
+
+2. Mỗi thành viên làm trên 1 nhánh riêng, hạn chế sửa cùng 1 file để tránh xung đột.
+
+3. Tách rõ vai trò: UI chỉ hiển thị; Provider điều phối; Repository/Service xử lý dữ liệu.
+
+4. Dùng mock test (kiểm thử bằng dữ liệu giả) ngay từ đầu để không cần chờ Firebase hoặc Gemini thật.
+
+5. Chỉ merge khi qua kiểm tra cơ bản:
+
+    flutter analyze
+    flutter test
+
+------------------------------------------------------------------------
+
+## Thành viên 1 - UI / UX
 
 **Trách nhiệm**
 
--   Xây dựng các màn hình UI
--   Thiết kế bố cục giao diện
--   Xây dựng component UI
--   Tối ưu trải nghiệm người dùng
+-   Xây dựng màn hình và các widget dùng lại nhiều nơi
+-   Hoàn thiện các trạng thái giao diện: đăng nhập, đang tải, lỗi, không có dữ liệu
+-   Không đặt xử lý nghiệp vụ trong màn hình
 
 **Thư mục thao tác**
 
     lib/screens/
+    lib/core/theme/
     lib/utils/
+    lib/app.dart
 
-**File được phép chỉnh sửa**
+**Kiểm thử bằng dữ liệu giả (mock test)**
 
-    app.dart
-    screens/*
-
-**File không chỉnh sửa**
-
-    main.dart
-    providers/
-    services/
+-   Tạo dữ liệu giả để chạy thử giao diện ngay cả khi backend chưa xong
+-   Khi Provider chưa hoàn thành, dùng Provider giả trả dữ liệu mẫu
+-   Viết test giao diện cho các trạng thái chính (đang tải, thành công, lỗi)
 
 ------------------------------------------------------------------------
 
-## 2️⃣ Backend / Firebase
+## Thành viên 2 - Backend / Firebase
 
 **Trách nhiệm**
 
--   Đọc/ghi dữ liệu Firestore
--   Xử lý xác thực người dùng
--   Xử lý dữ liệu phía backend
+-   Xây dựng phần đọc/ghi dữ liệu với Firebase
+-   Viết phần Repository cho Firestore và đăng nhập
+-   Đổi lỗi kỹ thuật từ Firebase thành lỗi dễ hiểu cho app
 
 **Thư mục thao tác**
 
-    lib/services/
+    lib/services/firebase/
     lib/models/
+    lib/repositories/
 
-Ví dụ file:
+**Kiểm thử bằng dữ liệu giả (mock test)**
 
-    services/firestore_service.dart
-    services/auth_service.dart
-    models/user_model.dart
+-   Viết test từng hàm nhỏ cho Service/Repository bằng dữ liệu giả
+-   Tạo test cho cả 2 trường hợp: thành công và thất bại
+-   Nếu cần kiểm tra gần giống môi trường thật, dùng Firebase Emulator (Firebase chạy cục bộ trên máy)
 
 ------------------------------------------------------------------------
 
-## 3️⃣ AI Gemini
+## Thành viên 3 - AI Gemini
 
 **Trách nhiệm**
 
--   Tích hợp Gemini API
--   Xử lý prompt
--   Xây dựng logic chat AI
+-   Tích hợp Gemini và xử lý gửi câu hỏi/nhận câu trả lời
+-   Xử lý các tình huống lỗi: mạng chậm, hết thời gian chờ, trả dữ liệu rỗng
+-   Chuẩn bị sẵn bản Gemini giả để các phần khác test độc lập
 
 **Thư mục thao tác**
 
-    lib/services/
+    lib/services/ai/
+    lib/repositories/
 
-Ví dụ:
+**Kiểm thử bằng dữ liệu giả (mock test)**
 
-    services/gemini_service.dart
+-   Tạo một Gemini giả (MockGeminiService) trả về câu trả lời cố định để thành viên khác dùng ngay
+-   Viết test cho các trường hợp: hết thời gian chờ, dữ liệu sai định dạng, dữ liệu rỗng
+-   Cung cấp bộ câu hỏi mẫu và kết quả mong muốn để test tự động
 
 API key lưu trong:
 
@@ -108,24 +137,48 @@ API key lưu trong:
 
 ------------------------------------------------------------------------
 
-## 4️⃣ Logic / State
+## Thành viên 4 - Logic / State và tích hợp
 
 **Trách nhiệm**
 
--   Quản lý trạng thái ứng dụng
--   Kết nối UI với backend
--   Điều phối luồng dữ liệu trong ứng dụng
+-   Xây dựng Provider và các trạng thái chính
+-   Nối UI với Repository/Service theo luồng dữ liệu đã thống nhất
+-   Cấu hình Provider trong `main.dart` và đảm bảo app khởi động ổn định
 
 **Thư mục thao tác**
 
     lib/providers/
+    lib/main.dart
 
 Ví dụ:
 
     providers/auth_provider.dart
     providers/chat_provider.dart
 
-Nhiệm vụ này cũng sẽ khai báo provider trong `main.dart`.
+**Kiểm thử bằng dữ liệu giả (mock test)**
+
+-   Viết test cho Provider với dữ liệu giả cho đăng nhập và chat (MockAuthRepository, MockChatRepository)
+-   Chạy test theo luồng: đăng nhập -> tải dữ liệu -> xử lý lỗi (dùng dữ liệu giả)
+-   Khi backend/AI thật sẵn sàng, chỉ thay phần dữ liệu giả bằng dữ liệu thật, UI giữ nguyên
+
+------------------------------------------------------------------------
+
+## Giải thích nhanh thuật ngữ
+
+-   Mock test: Kiểm thử bằng dữ liệu giả để làm việc sớm, không phải chờ hệ thống thật
+-   Provider: Nơi quản lý trạng thái để màn hình biết đang tải, thành công hay lỗi
+-   Repository: Lớp trung gian lấy dữ liệu từ Service rồi trả về cho Provider
+-   Service: Nơi gọi Firebase hoặc Gemini
+-   Firebase Emulator: Bản Firebase chạy ngay trên máy cá nhân để test an toàn
+
+------------------------------------------------------------------------
+
+## Tách nhánh đề xuất để làm song song
+
+    feature/member1-ui-ux
+    feature/member2-firebase-data
+    feature/member3-gemini-ai
+    feature/member4-provider-integration
 
 ------------------------------------------------------------------------
 
@@ -137,7 +190,7 @@ Trách nhiệm:
 
 -   Khởi tạo Firebase
 -   Nạp biến môi trường
--   Đăng ký provider
+-   Khai báo Provider để toàn app dùng chung
 -   Khởi chạy ứng dụng
 
 ⚠️ Chỉ nhiệm vụ **Logic / State** nên chỉnh sửa file này.
@@ -148,9 +201,9 @@ Trách nhiệm:
 
 Trách nhiệm:
 
--   Cấu hình `MaterialApp`
--   Quản lý theme
--   Quản lý điều hướng / routes
+-   Cấu hình ứng dụng chính (`MaterialApp`)
+-   Quản lý giao diện chung (theme)
+-   Quản lý chuyển màn hình (routes)
 -   Định nghĩa màn hình khởi đầu
 
 ⚠️ Chỉ nhiệm vụ **UI / UX** nên chỉnh sửa file này.
@@ -163,10 +216,10 @@ Trách nhiệm:
 
 Ví dụ:
 
-    feature/ui-home
-    feature/firebase-booking
-    feature/gemini-chat
-    feature/provider-auth
+    feature/member1-ui-ux
+    feature/member2-firebase-data
+    feature/member3-gemini-ai
+    feature/member4-provider-integration
 
 ------------------------------------------------------------------------
 
@@ -210,9 +263,9 @@ Ví dụ:
 
 Ví dụ:
 
-    firestore_service.dart
-    gemini_service.dart
-    auth_service.dart
+    services/firebase/firestore_service.dart
+    services/ai/gemini_service.dart
+    services/firebase/auth_service.dart (nếu có)
 
 Nếu `models/` thay đổi:
 
