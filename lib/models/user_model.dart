@@ -1,13 +1,11 @@
-/// Mô hình người dùng — Thực thể trung tâm của toàn bộ hệ thống.
-///
-/// Mọi thành viên trong nhóm đều phải sử dụng model này khi cần thông tin user.
-/// KHÔNG tự tạo class riêng.
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String id;
   final String email;
   final String name;
   final String? avatarUrl;
-  final String? gender; // 'male' | 'female' | 'other'
+  final String? gender; 
   final double? heightCm; // Chiều cao (cm)
   final double? weightKg; // Cân nặng (kg)
   final int? birthYear; // Năm sinh
@@ -22,7 +20,7 @@ class UserModel {
     this.avatarUrl,
     this.gender,
     this.heightCm,
-    this.weightKg,
+    this.weightKg
     this.birthYear,
     this.stepGoal = 10000,
     this.waterGoalLiters = 2.0,
@@ -44,6 +42,28 @@ class UserModel {
       waterGoalLiters: (json['water_goal_liters'] as num?)?.toDouble() ?? 2.0,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  factory UserModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      return UserModel(id: doc.id, email: '', name: 'Unknown'); 
+    }
+    return UserModel(
+      id: doc.id,
+      email: data['email'] as String? ?? '',
+      name: data['name'] as String? ?? '',
+      avatarUrl: data['avatar_url'] as String?,
+      gender: data['gender'] as String?,
+      heightCm: (data['height_cm'] as num?)?.toDouble(),
+      weightKg: (data['weight_kg'] as num?)?.toDouble(),
+      birthYear: data['birth_year'] as int?,
+      stepGoal: (data['step_goal'] as int?) ?? 10000,
+      waterGoalLiters: (data['water_goal_liters'] as num?)?.toDouble() ?? 2.0,
+      createdAt: data['created_at'] != null
+          ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
     );
   }
