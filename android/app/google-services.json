@@ -12,7 +12,28 @@
           "package_name": "com.example.shcare_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "972163901927-esuea9u6rt67pcdup24ppn4d56v92042.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.shcare_app",
+            "certificate_hash": "f86b87529fdf7e3d401c3c9fec33d93611293d8a"
+          }
+        },
+        {
+          "client_id": "972163901927-k5rin682760trbc0duun775flcraocka.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.shcare_app",
+            "certificate_hash": "601ea2772431f8ff1e680770ed9712a10cba699b"
+          }
+        },
+        {
+          "client_id": "972163901927-j9oupquu9br4u5dbocnndb57d6vjobi3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDsMmGoCOv26_WM_1Pg9-Tm_ZaOYFux_Mo"
@@ -20,7 +41,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "972163901927-j9oupquu9br4u5dbocnndb57d6vjobi3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:972163901927:android:9a51bd76eb7fa76d4eb542",
+        "android_client_info": {
+          "package_name": "com.shcare.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "972163901927-j9oupquu9br4u5dbocnndb57d6vjobi3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsMmGoCOv26_WM_1Pg9-Tm_ZaOYFux_Mo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "972163901927-j9oupquu9br4u5dbocnndb57d6vjobi3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

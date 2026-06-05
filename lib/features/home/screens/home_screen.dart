@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/auth_provider.dart';
 
 import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -110,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
+    final auth = context.watch<AuthProvider>();
     final currentTask = healthData.petTask;
     if (_lastTask != currentTask) {
       _lastTask = currentTask;
@@ -135,7 +137,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const HomeTopGreeting(name: 'Khang'),
+              HomeTopGreeting(
+                name: auth.userName,
+              ),
               const SizedBox(height: 20),
               HomeDailySummaryCard(
                 steps: healthData.steps,

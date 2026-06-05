@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shcare_app/services/auth_service.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
@@ -68,25 +69,56 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
             ],
           ),
         ),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.25),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: const GifIcon(
-            assetPath: AppGifIcons.profile,
-            fallbackIcon: Icons.person_rounded,
-            fallbackColor: Colors.white,
-            size: 24,
+        GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Đăng xuất'),
+                  content: const Text('Bạn có chắc chắn muốn đăng xuất tài khoản?'),
+                  actions: [
+                    TextButton(
+                      child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                    TextButton(
+                      child: const Text('Đăng xuất', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await AuthService().signOut();
+                        if (context.mounted) {
+                          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                        }
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const GifIcon(
+              assetPath: AppGifIcons.profile,
+              fallbackIcon: Icons.person_rounded,
+              fallbackColor: Colors.white,
+              size: 24,
+            ),
           ),
         ),
       ],
