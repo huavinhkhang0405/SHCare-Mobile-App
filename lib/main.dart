@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/firebase_options.dart';
 import 'app.dart';
 import 'core/providers/audio_provider.dart';
 import 'features/home/providers/health_provider.dart';
 import 'providers/auth_provider.dart';
+import 'services/screen_time_service.dart';
+import 'services/notification_service.dart';
 
 /* =========================================================
    FILE: main.dart
@@ -23,6 +27,42 @@ import 'providers/auth_provider.dart';
    - Chỉ nhóm Logic/State được phép thêm Provider
    ========================================================= */
 
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload(); // Đọc dữ liệu mới nhất từ ổ cứng
+
+      final currentUser = prefs.getString('current_user_email') ?? 'shcare_tester_001';
+      final hasShownKey = '${currentUser}_has_shown_screentime_alert';
+      final hasShownAlert = prefs.getBool(hasShownKey) ?? false;
+
+      if (!hasShownAlert) {
+        final screenTimeService = ScreenTimeService();
+        final minutes = await screenTimeService.getTotalSocialMediaUsageMinutes();
+        
+        // Ngưỡng 5 phút để test cảnh báo ngầm hoạt động
+        if (minutes >= 5) {
+          final usageDetails = await screenTimeService.getSocialMediaUsageToday();
+          
+          await NotificationService.init();
+          await NotificationService.showNotification(
+            title: '⚠️ CẢNH BÁO SỨC KHỎE SỐ',
+            body: 'Bạn đã dùng Mạng xã hội/Game quá 5 phút hôm nay! ($usageDetails)',
+          );
+
+          await prefs.setBool(hasShownKey, true);
+        }
+      }
+    } catch (e) {
+      debugPrint('🚨 [WorkManager] Lỗi thực thi tác vụ chạy ngầm: $e');
+    }
+    return Future.value(true);
+  });
+}
+
 Future<void> main() async {
   /* =========================================================
      STEP 1: Khởi tạo Flutter Engine
@@ -31,6 +71,15 @@ Future<void> main() async {
      hoặc trước khi khởi tạo Firebase
   */
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Khởi tạo Workmanager cho dịch vụ chạy nền
+  try {
+    await Workmanager().initialize(
+      callbackDispatcher,
+    );
+  } catch (e) {
+    debugPrint('🚨 [WorkManager] Không thể khởi tạo: $e');
+  }
 
   /* =========================================================
      STEP 2: Load biến môi trường (.env)
@@ -107,7 +156,15 @@ Future<void> main() async {
         // ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AudioProvider()),
-        ChangeNotifierProvider(create: (_) => HealthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, HealthProvider>(
+          create: (_) => HealthProvider(),
+          update: (_, auth, health) {
+            if (health != null) {
+              health.updateUser(auth.userEmail);
+            }
+            return health!;
+          },
+        ),
 
         // Provider tạm để tránh lỗi khi chưa có Provider nào
         Provider.value(value: ''),

@@ -7,9 +7,14 @@ import '../../../core/widgets/gif_icon.dart';
 import '../../../utils/date_formatter.dart';
 
 class HomeTopGreeting extends StatefulWidget {
-  const HomeTopGreeting({super.key, required this.name});
+  const HomeTopGreeting({
+    super.key,
+    required this.name,
+    this.onProfileTap,
+  });
 
   final String name;
+  final VoidCallback? onProfileTap;
 
   @override
   State<HomeTopGreeting> createState() => _HomeTopGreetingState();
@@ -68,25 +73,28 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
             ],
           ),
         ),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.25),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: const GifIcon(
-            assetPath: AppGifIcons.profile,
-            fallbackIcon: Icons.person_rounded,
-            fallbackColor: Colors.white,
-            size: 24,
+        GestureDetector(
+          onTap: widget.onProfileTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const GifIcon(
+              assetPath: AppGifIcons.profile,
+              fallbackIcon: Icons.person_rounded,
+              fallbackColor: Colors.white,
+              size: 24,
+            ),
           ),
         ),
       ],

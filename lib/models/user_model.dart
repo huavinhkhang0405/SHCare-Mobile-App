@@ -20,7 +20,7 @@ class UserModel {
     this.avatarUrl,
     this.gender,
     this.heightCm,
-    this.weightKg
+    this.weightKg,
     this.birthYear,
     this.stepGoal = 10000,
     this.waterGoalLiters = 2.0,

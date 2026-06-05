@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../../models/task_suggestion.dart';
+import '../../models/nutrition_result.dart';
 
 /// Bộ não AI của SHCare — Sử dụng Gemini API để sinh nhiệm vụ sức khỏe.
 ///
@@ -49,6 +50,7 @@ class GeminiService {
     required double waterLiters,
     required double waterGoal,
     required double energyLevel,
+    required String screenTimeData,
   }) async {
     // Nếu chưa có API key, trả fallback ngay
     if (!_isConfigured) {
@@ -65,12 +67,14 @@ Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa v
 - Nhịp tim: $bpm bpm
 - Lượng nước đã uống: $waterLiters / $waterGoal lít
 - Mức năng lượng: ${(energyLevel * 100).toInt()}%
+- 📱 Hoạt động kỹ thuật số (Screen Time): $screenTimeData
 
 [Quy tắc sinh nhiệm vụ]
-1. Phân tích: Nếu "Lượng nước" dưới 50% mục tiêu, BẮT BUỘC có nhiệm vụ uống nước.
-2. Phân tích: Nếu "Nhịp tim" lớn hơn 90bpm, BẮT BUỘC có nhiệm vụ hít thở hoặc nghỉ ngơi.
-3. Trọng số EXP: Nhiệm vụ dễ (20 EXP), Vừa (30 EXP), Khó (50 EXP).
-4. Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
+1. Phân tích: Nếu "Lượng nước" dưới 50% mục tiêu, BẮT BUỘC có nhiệm vụ uống nước (type: "water").
+2. Phân tích: Nếu "Nhịp tim" lớn hơn 90bpm, BẮT BUỘC có nhiệm vụ hít thở hoặc nghỉ ngơi (type: "relax").
+3. DIGITAL DETOX: Đọc biến "Hoạt động kỹ thuật số (Screen Time)". Nếu người dùng sử dụng Mạng xã hội / Game (TikTok, Facebook, YouTube, Instagram...) VƯỢT QUÁ 5 phút (ngưỡng thử nghiệm theo yêu cầu của người dùng để test tính năng hoạt động), BẮT BUỘC sinh ra 1 nhiệm vụ rời xa màn hình (Ví dụ: "Nhắm mắt thư giãn 5 phút", "Đi dạo ngoài trời 15 phút" với type: "relax" hoặc "exercise").
+4. Trọng số EXP: Nhiệm vụ dễ (20 EXP), Vừa (30 EXP), Khó (50 EXP).
+5. Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
 
 TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU:
 [
@@ -104,6 +108,42 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU:
       debugPrint('🚨 [GeminiService] Lỗi khi gọi Gemini: $e');
       // ─── 4. Fallback Logic ────────────────────────────────
       return _getFallbackTasks();
+    }
+  }
+
+  /// Phân tích khẩu phần ăn qua AI để ước lượng Calories, Protein, Carbs, Fat.
+  Future<NutritionResult?> analyzeNutrition(String mealDescription) async {
+    final prompt = '''
+    Bạn là một chuyên gia dinh dưỡng. Người dùng vừa nhập bữa ăn của họ: "$mealDescription".
+    Nhiệm vụ của bạn là ước tính tổng lượng dinh dưỡng (Calories, Protein, Carbs, Fat).
+    
+    [Quy tắc nghiêm ngặt]
+    1. Nếu nội dung KHÔNG PHẢI là đồ ăn/thức uống (ví dụ: "tôi đi bộ", "xin chào", câu chửi thề), hãy đặt "is_valid_food" = false và cho các chỉ số bằng 0.
+    2. Nếu là đồ ăn, ước lượng số liệu ở mức trung bình của Việt Nam (ví dụ: 1 tô phở bò ~ 450-500 kcal).
+    3. Chỉ trả về JSON thuần túy, KHÔNG giải thích thêm.
+
+    [Định dạng JSON yêu cầu]
+    {
+      "food_items": ["tên món 1", "tên món 2"],
+      "total_calories": 500,
+      "total_protein": 30,
+      "total_carbs": 55,
+      "total_fat": 15,
+      "is_valid_food": true
+    }
+    ''';
+
+    try {
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final text = response.text;
+      if (text == null || text.isEmpty) return null;
+
+      // Parse JSON thành Map
+      final Map<String, dynamic> jsonMap = json.decode(text);
+      return NutritionResult.fromJson(jsonMap);
+    } catch (e) {
+      debugPrint('🚨 Lỗi AI phân tích thức ăn: $e');
+      return null;
     }
   }
 

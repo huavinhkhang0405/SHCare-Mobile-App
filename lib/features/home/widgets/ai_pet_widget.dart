@@ -304,7 +304,9 @@ class _AIPetWidgetState extends State<AIPetWidget>
   void didUpdateWidget(covariant AIPetWidget old) {
     super.didUpdateWidget(old);
     if (widget.isLevelUp && !old.isLevelUp) _playLevelUp();
-    if (widget.petState != old.petState || widget.userName != old.userName) {
+    if (widget.petState != old.petState ||
+        widget.userName != old.userName ||
+        widget.classType != old.classType) {
       _stopSpecialAnimations();
       _checkPetState();
     }
