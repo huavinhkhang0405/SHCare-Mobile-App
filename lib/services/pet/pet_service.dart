@@ -65,7 +65,11 @@ class PetService {
       final snapshot = await transaction.get(petRef);
       
       if (!snapshot.exists) {
-        final newPet = PetModel(id: 'current_pet', userId: userId, currentExp: expGained);
+        final newPet = PetModel(
+          id: 'current_pet',
+          userId: userId,
+          currentExp: expGained,
+        );
         transaction.set(petRef, newPet.toJson());
         return;
       }

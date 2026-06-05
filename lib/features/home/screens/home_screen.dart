@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:workmanager/workmanager.dart';
 
 import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -26,7 +28,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _petSectionKey = GlobalKey();
   bool _petTypingTriggered = false;
@@ -36,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- THÊM CÁC BIẾN NÀY ĐỂ XỬ LÝ DỮ LIỆU PET GIẢ LẬP ---
   final PetService _petService = PetService();
-  final String mockUserId = 'shcare_tester_001'; // User giả lập để test
   int _previousLevel = 1;
   String? _lastTask;
 
@@ -92,14 +93,47 @@ class _HomeScreenState extends State<HomeScreen> {
       _handleScroll();
       _updateRemainingScans();
     });
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Xin quyền thông báo và đăng ký dịch vụ chạy ngầm
+    _requestNotificationPermissionAndRegisterWorkmanager();
+  }
+
+  Future<void> _requestNotificationPermissionAndRegisterWorkmanager() async {
+    // Xin quyền thông báo (bắt buộc từ Android 13+)
+    if (await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
+
+    // Đăng ký tác vụ định kỳ kiểm tra thời lượng dùng màn hình (15 phút một lần)
+    try {
+      await Workmanager().registerPeriodicTask(
+        'wellbeing-screentime-periodic-task', // uniqueName
+        'wellbeing-screentime-check', // taskName
+        frequency: const Duration(minutes: 15),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+      debugPrint('✅ [WorkManager] Đăng ký periodic task thành công');
+    } catch (e) {
+      debugPrint('🚨 [WorkManager] Lỗi đăng ký periodic task: $e');
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _typingTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<HealthProvider>().checkScreenTimeLimit();
+    }
   }
 
   void _handleScroll() {
@@ -119,6 +153,33 @@ class _HomeScreenState extends State<HomeScreen> {
       _resetTyping();
       setState(() => _petTypingTriggered = false);
     }
+  }
+
+  void _showScreenTimeWarningDialog(BuildContext context, HealthProvider healthData) {
+    // Kích hoạt âm thanh cảnh báo hệ thống và rung máy
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.heavyImpact();
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'ScreenTimeWarning',
+      barrierColor: Colors.black.withValues(alpha: 0.75), // Nền mờ cực sâu
+      transitionDuration: const Duration(milliseconds: 450),
+      pageBuilder: (context, anim1, anim2) {
+        return _ScreenTimeWarningDialog(healthData: healthData);
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curve = CurvedAnimation(parent: anim1, curve: Curves.easeOutBack);
+        return ScaleTransition(
+          scale: curve,
+          child: FadeTransition(
+            opacity: anim1,
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   void _startTyping(BuildContext context) {
@@ -161,6 +222,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
     final auth = context.watch<AuthProvider>();
+    // Kiểm tra và hiển thị cảnh báo thời gian sử dụng màn hình nếu vượt ngưỡng mà chưa hiện
+    if (healthData.isScreenTimeExceeded && !healthData.hasShownScreenTimeAlert) {
+      // Đánh dấu đã hiện ngay lập tức để tránh rebuild chồng chéo Dialog
+      healthData.markScreenTimeAlertAsShown();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showScreenTimeWarningDialog(context, healthData);
+        }
+      });
+    }
     final currentTask = healthData.petTask;
     if (_lastTask != currentTask) {
       _lastTask = currentTask;
@@ -177,6 +248,10 @@ class _HomeScreenState extends State<HomeScreen> {
       healthData.goal,
     );
 
+    final cleanUserId = auth.userEmail.isNotEmpty
+        ? auth.userEmail.replaceAll('@', '_').replaceAll('.', '_')
+        : 'shcare_tester_001';
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
@@ -187,7 +262,8 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               HomeTopGreeting(
-                name: auth.userName,
+                name: auth.userName.isNotEmpty ? auth.userName : 'Khang',
+                onProfileTap: () => _showProfileBottomSheet(context, auth),
               ),
               const SizedBox(height: 20),
               HomeDailySummaryCard(
@@ -253,10 +329,10 @@ class _HomeScreenState extends State<HomeScreen> {
               // KHU VỰC PET ĐÃ ĐƯỢC BỌC STREAM BUILDER
               // =========================================================
               StreamBuilder<PetModel>(
-                stream: _petService.streamPetData(mockUserId),
+                stream: _petService.streamPetData(cleanUserId),
                 builder: (context, snapshot) {
                   // Khởi tạo pet mặc định nếu chưa có dữ liệu (Cấp 1, 0 EXP)
-                  final pet = snapshot.data ?? PetModel(id: 'temp', userId: mockUserId);
+                  final pet = snapshot.data ?? PetModel(id: 'temp', userId: cleanUserId);
 
                   // Logic tính toán hiệu ứng lên cấp
                   bool isLevelUp = false;
@@ -316,7 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Column(
                               children: [
                                 FantasyEnvironment(
-                                  classType: 4,
+                                  classType: pet.classType,
                                   level: pet.level, 
                                   effect: isLevelUp 
                                       ? FantasyEnvironmentEffect.levelUp 
@@ -325,10 +401,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                           : FantasyEnvironmentEffect.none),
                                   petWidget: AIPetWidget(
                                     petState: animState,
-                                    classType: 4,
+                                    classType: pet.classType,
                                     level: pet.level,
                                     isLevelUp: isLevelUp,
-                                    userName: 'Khang', // Sau này đổi theo người dùng
+                                    userName: auth.userName.isNotEmpty ? auth.userName : 'Khang',
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -360,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const SizedBox(height: 16),
 
                                 _PetDialogueCard(
-                                  classType: 4,
+                                  classType: pet.classType,
                                   petMessage: pet.message.isNotEmpty ? pet.message : healthData.petMessage,
                                   typedTask: _petTypingTriggered
                                       ? (_isTyping
@@ -511,6 +587,285 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showProfileBottomSheet(BuildContext context, AuthProvider auth) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final currentEmail = auth.userEmail;
+        final mockUsers = [
+          {'email': 'admin@shcare.vn', 'name': 'Admin SHCare', 'avatar': '👑'},
+          {'email': 'khang@shcare.vn', 'name': 'Huỳnh Vĩnh Khang', 'avatar': '👦'},
+          {'email': 'test@shcare.vn', 'name': 'Tester SHCare', 'avatar': '🧪'},
+          {'email': 'demo@shcare.vn', 'name': 'Demo User', 'avatar': '👤'},
+        ];
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Hồ sơ sức khỏe',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: AppColors.primary,
+                        child: Text(
+                          auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : 'K',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              auth.userName.isNotEmpty ? auth.userName : 'Huỳnh Vĩnh Khang',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              auth.userEmail.isNotEmpty ? auth.userEmail : 'khang@shcare.vn',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Hiện tại',
+                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/profile');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_outline_rounded,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Xem thông tin cá nhân',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: AppColors.textHint,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: AppColors.cardBorder),
+                const SizedBox(height: 20),
+                const Text(
+                  'Chuyển hồ sơ người dùng',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: mockUsers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final u = mockUsers[index];
+                      final isCurrent = u['email'] == currentEmail;
+                      if (isCurrent) return const SizedBox.shrink();
+                      
+                      return InkWell(
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final navigator = Navigator.of(context);
+                          
+                          navigator.pop(); // Close BottomSheet
+                          
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(
+                              child: CircularProgressIndicator(color: AppColors.primary),
+                            ),
+                          );
+                          
+                          String pass = 'khang123';
+                          if (u['email'] == 'admin@shcare.vn') pass = 'admin123';
+                          if (u['email'] == 'test@shcare.vn') pass = 'test1234';
+                          if (u['email'] == 'demo@shcare.vn') pass = 'demo1234';
+                          
+                          final success = await auth.loginWithEmail(u['email']!, pass);
+                          
+                          navigator.pop(); // Close loading dialog
+                          
+                          if (success) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Đã chuyển đổi sang hồ sơ của ${u['name']}!'),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          } else {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Không thể chuyển đổi hồ sơ.'),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.cardBorder),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                u['avatar']!,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      u['name']!,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      u['email']!,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textHint,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.swap_horiz_rounded, color: AppColors.primary, size: 20),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: AppColors.cardBorder),
+                const SizedBox(height: 10),
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                  title: const Text(
+                    'Đăng xuất khỏi ứng dụng',
+                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    auth.logout();
+                    Navigator.pushReplacementNamed(context, '/login');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      },
     );
   }
 }
@@ -812,4 +1167,208 @@ class _RuneOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RuneOverlayPainter oldDelegate) => false;
+}
+
+// =========================================================
+// HỘP THOẠI CẢNH BÁO THỜI GIAN SỬ DỤNG MÀN HÌNH - PHONG CÁCH RPG
+// =========================================================
+class _ScreenTimeWarningDialog extends StatefulWidget {
+  final HealthProvider healthData;
+
+  const _ScreenTimeWarningDialog({required this.healthData});
+
+  @override
+  State<_ScreenTimeWarningDialog> createState() => _ScreenTimeWarningDialogState();
+}
+
+class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF0C121E), // Nền tối RPG sang trọng
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0xFFD7B56D), width: 2), // Viền vàng đồng
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Icon cảnh báo phát sáng đập nhẹ (Pulse animation)
+          ScaleTransition(
+            scale: _scaleAnimation,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5252).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF5252).withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                color: Color(0xFFFF5252),
+                size: 48,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Tiêu đề cảnh báo
+          const Text(
+            'CẢNH BÁO SỨC KHỎE SỐ',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFF4E2B6), // Chữ vàng đồng sáng
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Nội dung cảnh báo
+          const Text(
+            'Bạn đã dành quá nhiều thời gian cho Game hoặc Mạng xã hội hôm nay!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Khung hiển thị chi tiết thời gian sử dụng
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.query_stats_rounded,
+                      size: 14,
+                      color: Color(0xFFD7B56D),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Chi tiết hôm nay:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFD7B56D).withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.healthData.screenTimeDetails.isNotEmpty
+                      ? widget.healthData.screenTimeDetails
+                      : 'Đang tổng hợp dữ liệu ứng dụng...',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFB6A27A),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Lời khuyên của Pet
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '🐉',
+                style: TextStyle(fontSize: 20),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF162033),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD7B56D).withValues(alpha: 0.3)),
+                  ),
+                  child: const Text(
+                    'Bạn nên rời màn hình điện thoại ngay. Đi dạo 15 phút hoặc nhắm mắt thư giãn 5 phút nhé!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white70,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Nút đóng "Đã hiểu & Sẽ chú ý"
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                // Kích hoạt âm thanh click và đóng dialog
+                SystemSound.play(SystemSoundType.click);
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD7B56D), // Màu vàng đồng RPG
+                foregroundColor: Colors.black87,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+              child: const Text(
+                'Đã hiểu & Sẽ chú ý',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

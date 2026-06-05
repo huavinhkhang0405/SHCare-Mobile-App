@@ -9,9 +9,14 @@ import '../../../core/widgets/gif_icon.dart';
 import '../../../utils/date_formatter.dart';
 
 class HomeTopGreeting extends StatefulWidget {
-  const HomeTopGreeting({super.key, required this.name});
+  const HomeTopGreeting({
+    super.key,
+    required this.name,
+    this.onProfileTap,
+  });
 
   final String name;
+  final VoidCallback? onProfileTap;
 
   @override
   State<HomeTopGreeting> createState() => _HomeTopGreetingState();
@@ -71,7 +76,7 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
           ),
         ),
         GestureDetector(
-          onTap: () {
+          onTap: widget.onProfileTap ?? () {
             showModalBottomSheet(
               context: context,
               backgroundColor: Colors.transparent,

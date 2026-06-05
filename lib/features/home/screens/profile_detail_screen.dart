@@ -127,7 +127,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           _isEditing ? 'Chỉnh sửa hồ sơ' : 'Hồ sơ cá nhân',

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/pet_model.dart';
 import '../../../services/pet/pet_service.dart';
+import '../../../providers/auth_provider.dart';
 import '../../home/widgets/ai_pet_widget.dart';
 
 class PetDashboardScreen extends StatefulWidget {
@@ -18,6 +20,7 @@ class _PetDashboardScreenState extends State<PetDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.read<AuthProvider>();
     return Scaffold(
       backgroundColor: const Color(0xFF2C3E50), // Màu nền tuỳ chỉnh cho hợp với Aura
       appBar: AppBar(title: const Text("SHCare Pet")),
@@ -51,9 +54,10 @@ class _PetDashboardScreenState extends State<PetDashboardScreen> {
               // 1. Core Widget: Pet Animation của bạn
               AIPetWidget(
                 petState: animState,
-                classType: 4, // Class Mage (có thể random hoặc lưu vào DB sau)
+                classType: pet.classType,
                 level: pet.level,
                 isLevelUp: isLevelUp,
+                userName: auth.userName.isNotEmpty ? auth.userName : 'Khang',
               ),
 
               const SizedBox(height: 20),

@@ -65,7 +65,7 @@ class _JournalScreenState extends State<JournalScreen> {
               ),
               const SizedBox(height: 10),
               SizedBox(
-                height: 102,
+                height: 112,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: kMoodOptions.length,
@@ -104,7 +104,10 @@ class _JournalScreenState extends State<JournalScreen> {
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOut,
                         width: 96,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? mood.color
@@ -136,7 +139,7 @@ class _JournalScreenState extends State<JournalScreen> {
                               mood.emoji,
                               style: const TextStyle(fontSize: 26),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               mood.label,
                               style: TextStyle(
@@ -222,6 +225,13 @@ class _JournalScreenState extends State<JournalScreen> {
               ),
               const SizedBox(height: 20),
               const JournalSectionHeader(
+                title: 'Nhật ký Dinh dưỡng AI',
+                actionLabel: 'Ước lượng bởi Gemini',
+              ),
+              const SizedBox(height: 10),
+              const _JournalNutritionCard(),
+              const SizedBox(height: 20),
+              const JournalSectionHeader(
                 title: 'Ghi chú nhanh',
                 actionLabel: 'Tự do',
               ),
@@ -285,6 +295,259 @@ class _JournalScreenState extends State<JournalScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// =========================================================
+// AI NUTRITION JOURNAL CARD WIDGET
+// =========================================================
+class _JournalNutritionCard extends StatefulWidget {
+  const _JournalNutritionCard();
+
+  @override
+  State<_JournalNutritionCard> createState() => _JournalNutritionCardState();
+}
+
+class _JournalNutritionCardState extends State<_JournalNutritionCard> {
+  final TextEditingController _mealController = TextEditingController();
+
+  @override
+  void dispose() {
+    _mealController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final healthData = context.watch<HealthProvider>();
+    final calProgress = (healthData.consumedCalories / 2000.0).clamp(0.0, 1.0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppColors.radiusMd),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Chỉ số Calories
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Calories đã nạp',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                '${healthData.consumedCalories} / 2000 kcal',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: calProgress,
+              minHeight: 10,
+              backgroundColor: AppColors.scaffoldBg,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Chỉ số các chất dinh dưỡng vi lượng (Protein, Carbs, Fat)
+          Row(
+            children: [
+              Expanded(
+                child: _buildMacroColumn(
+                  label: 'Protein (Đạm)',
+                  value: '${healthData.consumedProtein} g',
+                  color: Colors.orangeAccent,
+                ),
+              ),
+              Container(width: 1, height: 28, color: AppColors.cardBorder),
+              Expanded(
+                child: _buildMacroColumn(
+                  label: 'Carbs (Đường)',
+                  value: '${healthData.consumedCarbs} g',
+                  color: Colors.lightBlueAccent,
+                ),
+              ),
+              Container(width: 1, height: 28, color: AppColors.cardBorder),
+              Expanded(
+                child: _buildMacroColumn(
+                  label: 'Fat (Béo)',
+                  value: '${healthData.consumedFat} g',
+                  color: Colors.pinkAccent,
+                ),
+              ),
+            ],
+          ),
+          
+          // Lịch sử các món ăn đã nhập
+          if (healthData.todayFoods.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text(
+              'Các món ăn đã nạp hôm nay:',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: healthData.todayFoods.map((food) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1.0),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.restaurant_menu_rounded, size: 11, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      food,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              )).toList(),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+          const Divider(color: AppColors.cardBorder, height: 1),
+          const SizedBox(height: 16),
+
+          // Nhập món ăn bằng AI
+          TextField(
+            controller: _mealController,
+            maxLines: 2,
+            enabled: !healthData.isLoadingAI,
+            decoration: InputDecoration(
+              hintText: 'Nhập món ăn (ví dụ: Trưa nay mình ăn 1 dĩa cơm sườn bì chả và 1 ly trà đá)...',
+              hintStyle: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textHint,
+              ),
+              fillColor: AppColors.scaffoldBg,
+              filled: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: healthData.isLoadingAI
+                  ? null
+                  : () async {
+                      final text = _mealController.text.trim();
+                      if (text.isEmpty) return;
+
+                      final provider = context.read<HealthProvider>();
+                      final messenger = ScaffoldMessenger.of(context);
+                      final success = await provider.addMealRecord(text);
+                      if (!mounted) return;
+
+                      if (success) {
+                        _mealController.clear();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Đã phân tích thành công và cộng dồn dinh dưỡng!'),
+                            backgroundColor: Colors.green,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      } else {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Vui lòng nhập đúng tên món ăn / thức uống thực tế!'),
+                            backgroundColor: Colors.red,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+              icon: healthData.isLoadingAI
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome, size: 16),
+              label: Text(
+                healthData.isLoadingAI ? 'Đang phân tích món ăn...' : 'Phân tích bữa ăn qua AI',
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroColumn({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textHint,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -4,6 +4,7 @@ class PetModel {
   final String id;
   final String userId;
   final String name;
+  final int classType; // Tộc hệ / Class của Pet (1: Chiến binh, 2: Cung thủ, etc.)
 
   // ─── Level & EXP ──────────────────────────────────────────
   final int level;
@@ -28,6 +29,7 @@ class PetModel {
     required this.id,
     required this.userId,
     this.name = 'SHCare Pet',
+    int? classType,
     this.level = 1,
     this.currentExp = 0,
     this.expToNextLevel = 100,
@@ -36,15 +38,34 @@ class PetModel {
     this.currentTask = 'Đi bộ 500 bước để khởi động ngày mới.',
     this.isTaskCompleted = false,
     DateTime? lastInteraction,
-  }) : lastInteraction = lastInteraction ?? DateTime.now();
+  }) : lastInteraction = lastInteraction ?? DateTime.now(),
+       classType = classType ?? getDefaultClass(userId);
 
   double get expProgress => currentExp / expToNextLevel;
 
+  static int getDefaultClass(String userId) {
+    if (userId.contains('admin')) {
+      return 5;
+    } else if (userId.contains('khang')) {
+      return 4;
+    } else if (userId.contains('test')) {
+      return 3;
+    } else if (userId.contains('demo')) {
+      return 8;
+    } else if (userId.isNotEmpty && userId != 'temp') {
+      final hash = userId.codeUnits.fold<int>(0, (prev, element) => prev + element);
+      return (hash % 8) + 1;
+    }
+    return 4; // default fallback if userId is empty or temp
+  }
+
   factory PetModel.fromJson(Map<String, dynamic> json) {
+    final userIdVal = json['user_id'] as String? ?? '';
     return PetModel(
       id: json['id'] as String,
-      userId: json['user_id'] as String,
+      userId: userIdVal,
       name: (json['name'] as String?) ?? 'SHCare Pet',
+      classType: json['class_type'] as int?,
       level: (json['level'] as int?) ?? 1,
       currentExp: (json['current_exp'] as int?) ?? 0,
       expToNextLevel: (json['exp_to_next_level'] as int?) ?? 100,
@@ -63,6 +84,7 @@ class PetModel {
       'id': id,
       'user_id': userId,
       'name': name,
+      'class_type': classType,
       'level': level,
       'current_exp': currentExp,
       'exp_to_next_level': expToNextLevel,
@@ -76,6 +98,7 @@ class PetModel {
 
   PetModel copyWith({
     String? name,
+    int? classType,
     int? level,
     int? currentExp,
     int? expToNextLevel,
@@ -88,6 +111,7 @@ class PetModel {
       id: id,
       userId: userId,
       name: name ?? this.name,
+      classType: classType ?? this.classType,
       level: level ?? this.level,
       currentExp: currentExp ?? this.currentExp,
       expToNextLevel: expToNextLevel ?? this.expToNextLevel,
@@ -104,10 +128,28 @@ class PetModel {
     if (data == null) {
       return PetModel(id: doc.id, userId: '');
     }
+    // Parse the userId from the parent reference path if available, to guarantee correct matching even if the Firestore fields are empty/historical
+    final docUserId = doc.reference.parent.parent?.id ?? '';
+    final userId = docUserId.isNotEmpty ? docUserId : ((data['user_id'] as String?) ?? '');
+    int defaultClass = getDefaultClass(userId);
+
+    // Enforce correct classes for mock accounts to override historical 'class_type: 4' values in Firestore
+    int classTypeVal = (data['class_type'] as int?) ?? defaultClass;
+    if (userId.contains('admin')) {
+      classTypeVal = 5;
+    } else if (userId.contains('khang')) {
+      classTypeVal = 4;
+    } else if (userId.contains('test')) {
+      classTypeVal = 3;
+    } else if (userId.contains('demo')) {
+      classTypeVal = 8;
+    }
+
     return PetModel(
       id: doc.id,
-      userId: (data['user_id'] as String?) ?? '',
+      userId: userId,
       name: (data['name'] as String?) ?? 'SHCare Pet',
+      classType: classTypeVal,
       level: (data['level'] as int?) ?? 1,
       currentExp: (data['current_exp'] as int?) ?? 0,
       expToNextLevel: (data['exp_to_next_level'] as int?) ?? 100,
