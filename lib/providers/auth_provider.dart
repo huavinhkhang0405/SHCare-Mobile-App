@@ -267,6 +267,50 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Cập nhật thông tin cá nhân (Họ tên, Năm sinh, Giới tính, Chiều cao, Cân nặng)
+  Future<bool> updateProfile({
+    required String name,
+    required int birthYear,
+    required String gender,
+    required double heightCm,
+    required double weightKg,
+  }) async {
+    _setLoading(true);
+    _errorMessage = null;
+    try {
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      if (firebaseUser == null) {
+        _errorMessage = 'Không tìm thấy thông tin đăng nhập.';
+        _setLoading(false);
+        return false;
+      }
+
+      // Cập nhật tên hiển thị trên Firebase Auth
+      await firebaseUser.updateDisplayName(name);
+
+      final updatedModel = UserModel(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? _currentUserModel?.email ?? '',
+        name: name,
+        birthYear: birthYear,
+        gender: gender,
+        heightCm: heightCm,
+        weightKg: weightKg,
+        createdAt: _currentUserModel?.createdAt,
+      );
+
+      await _userService.saveUser(updatedModel);
+      _currentUserModel = updatedModel;
+      _setLoading(false);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật thông tin: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
   /// Đăng xuất
   Future<void> logout() async {
     _isLoading = true;
