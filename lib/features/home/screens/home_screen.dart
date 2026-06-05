@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/auth_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -17,7 +18,8 @@ import '../widgets/home_sections.dart';
 
 import '../../../models/pet_model.dart';
 import '../../../services/pet/pet_service.dart';
-import '../../../providers/auth_provider.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../utils/nutrition_analysis_limiter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,11 +41,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _previousLevel = 1;
   String? _lastTask;
 
+  int _remainingScans = 3;
+
+  Future<void> _updateRemainingScans() async {
+    final count = await NutritionAnalysisLimiter.getTodayScanCount();
+    if (mounted) {
+      setState(() {
+        _remainingScans = (3 - count).clamp(0, 3);
+      });
+    }
+  }
+
+  void _showLimitReachedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: const Color(0xFF111826),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFD7B56D), size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Hết lượt quét hôm nay',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Mỗi ngày bạn chỉ được quét tối đa 3 lần món ăn hoặc đồ uống để bảo toàn tài nguyên hệ thống. Hãy quay lại vào ngày mai nhé!',
+          style: TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Đồng ý',
+              style: TextStyle(color: Color(0xFFD7B56D), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _handleScroll());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleScroll();
+      _updateRemainingScans();
+    });
     WidgetsBinding.instance.addObserver(this);
     
     // Xin quyền thông báo và đăng ký dịch vụ chạy ngầm
@@ -173,7 +222,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
     final auth = context.watch<AuthProvider>();
-
     // Kiểm tra và hiển thị cảnh báo thời gian sử dụng màn hình nếu vượt ngưỡng mà chưa hiện
     if (healthData.isScreenTimeExceeded && !healthData.hasShownScreenTimeAlert) {
       // Đánh dấu đã hiện ngay lập tức để tránh rebuild chồng chéo Dialog
@@ -184,7 +232,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       });
     }
-
     final currentTask = healthData.petTask;
     if (_lastTask != currentTask) {
       _lastTask = currentTask;
@@ -275,6 +322,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   );
                 },
               ),
+              const SizedBox(height: 12),
+              _buildNutritionScanCard(context, healthData),
               
               // =========================================================
               // KHU VỰC PET ĐÃ ĐƯỢC BỌC STREAM BUILDER
@@ -452,6 +501,95 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildNutritionScanCard(BuildContext context, HealthProvider healthData) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppColors.radiusMd),
+        onTap: () async {
+          final canScan = await NutritionAnalysisLimiter.canScanToday();
+          if (!canScan) {
+            _showLimitReachedDialog();
+            return;
+          }
+
+          final ImagePicker picker = ImagePicker();
+          final XFile? image = await picker.pickImage(
+            source: ImageSource.camera,
+            maxWidth: 1024,
+            maxHeight: 1024,
+            imageQuality: 85,
+          );
+          if (image != null) {
+            if (!context.mounted) return;
+            await Navigator.of(context).pushNamed(
+              '/nutrition_preview',
+              arguments: image.path,
+            );
+            _updateRemainingScans();
+          }
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.cardBg,
+            borderRadius: BorderRadius.circular(AppColors.radiusMd),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: AppColors.softShadow,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.fireTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const GifIcon(
+                  assetPath: AppGifIcons.fire,
+                  fallbackIcon: Icons.camera_alt_rounded,
+                  fallbackColor: AppColors.fireIcon,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Quét dinh dưỡng AI',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Đã nạp: ${healthData.caloriesConsumed} kcal · Còn $_remainingScans lượt quét',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textHint,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showProfileBottomSheet(BuildContext context, AuthProvider auth) {
     showModalBottomSheet(
       context: context,
@@ -469,12 +607,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ];
 
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Center(
                   child: Container(
                     width: 38,
@@ -550,7 +689,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/profile');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_outline_rounded,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Xem thông tin cá nhân',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: AppColors.textHint,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: AppColors.cardBorder),
+                const SizedBox(height: 20),
                 const Text(
                   'Chuyển hồ sơ người dùng',
                   style: TextStyle(
@@ -676,7 +863,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

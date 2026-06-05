@@ -82,7 +82,14 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
 
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.'),
+          backgroundColor: AppColors.success,
+          duration: Duration(seconds: 6),
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 
@@ -90,7 +97,11 @@ class _RegisterScreenState extends State<RegisterScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithGoogle();
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
     }
   }
 
@@ -98,7 +109,11 @@ class _RegisterScreenState extends State<RegisterScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithFacebook();
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
     }
   }
 

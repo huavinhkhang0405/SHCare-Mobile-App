@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/task_suggestion.dart';
 import '../../../services/ai/gemini_service.dart';
 import '../../../services/pet/pet_service.dart';
+import '../../../models/nutrition_analysis_result.dart';
 import '../../../services/sensor/health_sensor_service.dart';
 import '../../../services/screen_time_service.dart';
 
@@ -71,6 +72,8 @@ class HealthProvider extends ChangeNotifier {
   int _caloriesBurned = 486;
   int _deepSleepMinutes = 198;
   int _healthScore = 88;
+
+  int get caloriesConsumed => _consumedCalories;
 
   int _hrvDelta = 8;
   int _calorieDelta = 11;
@@ -517,6 +520,29 @@ class HealthProvider extends ChangeNotifier {
   }
 
   // Hành động thủ công từ UI
+  Future<void> addNutritionInfo(NutritionAnalysisResult result) async {
+    _consumedCalories += result.calories;
+    _consumedProtein += result.proteinG.round();
+    _consumedCarbs += result.carbsG.round();
+    _consumedFat += result.fatG.round();
+    _todayFoods.add(result.name);
+    await _saveNutritionData();
+
+    if (result.waterLiters > 0) {
+      _waterLiters += result.waterLiters;
+      if (_waterLiters > _waterGoal) {
+        _waterLiters = _waterGoal;
+      }
+      _syncWaterProgress();
+      await _saveWaterData();
+    }
+
+    _simulateEnergyAndMood();
+    _updateHealthScore();
+    _refreshPetInsights();
+    notifyListeners();
+  }
+
   void addWater() {
     _waterLiters += 0.25;
     if (_waterLiters > _waterGoal) {
@@ -829,6 +855,7 @@ class HealthProvider extends ChangeNotifier {
       debugPrint('🚨 [HealthProvider] Lỗi khi lưu trạng thái daily task: $e');
     }
   }
+
 
   Future<void> _loadStateFromPrefs() async {
     try {

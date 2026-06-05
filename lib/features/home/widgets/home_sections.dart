@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/auth_provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
@@ -74,7 +76,16 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
           ),
         ),
         GestureDetector(
-          onTap: widget.onProfileTap,
+          onTap: widget.onProfileTap ?? () {
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (BuildContext context) {
+                return const ProfileActionsBottomSheet();
+              },
+            );
+          },
           child: Container(
             width: 44,
             height: 44,
@@ -671,6 +682,225 @@ class _HomeActivityTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class ProfileActionsBottomSheet extends StatelessWidget {
+  const ProfileActionsBottomSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.scaffoldBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.cardBorder,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // User avatar & info
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      auth.userName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      auth.userEmail,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: AppColors.cardBorder, height: 1),
+          const SizedBox(height: 16),
+          // Options
+          _buildOptionTile(
+            context,
+            icon: Icons.person_outline_rounded,
+            label: 'Thông tin cá nhân',
+            color: AppColors.primary,
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/profile');
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildOptionTile(
+            context,
+            icon: Icons.swap_horiz_rounded,
+            label: 'Chuyển tài khoản',
+            color: AppColors.accent,
+            onTap: () {
+              Navigator.of(context).pop();
+              _showConfirmDialog(
+                context,
+                title: 'Chuyển tài khoản',
+                content: 'Bạn có chắc chắn muốn đăng xuất để chuyển sang tài khoản khác?',
+                confirmLabel: 'Chuyển tài khoản',
+                confirmColor: AppColors.accent,
+                onConfirm: () async {
+                  await auth.logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  }
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildOptionTile(
+            context,
+            icon: Icons.logout_rounded,
+            label: 'Đăng xuất',
+            color: AppColors.error,
+            onTap: () {
+              Navigator.of(context).pop();
+              _showConfirmDialog(
+                context,
+                title: 'Đăng xuất',
+                content: 'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?',
+                confirmLabel: 'Đăng xuất',
+                confirmColor: AppColors.error,
+                onConfirm: () async {
+                  await auth.logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  }
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textHint,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showConfirmDialog(
+    BuildContext context, {
+    required String title,
+    required String content,
+    required String confirmLabel,
+    required Color confirmColor,
+    required VoidCallback onConfirm,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(content),
+        actions: [
+          TextButton(
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: confirmColor),
+            onPressed: () {
+              Navigator.of(context).pop();
+              onConfirm();
+            },
+            child: Text(confirmLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 }

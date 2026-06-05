@@ -58,7 +58,11 @@ class _LoginScreenState extends State<LoginScreen>
       _passwordController.text,
     );
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
     }
   }
 
@@ -66,7 +70,11 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithGoogle();
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
     }
   }
 
@@ -74,7 +82,11 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithFacebook();
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
     }
   }
 

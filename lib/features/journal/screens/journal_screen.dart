@@ -7,6 +7,8 @@ import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
 import '../../../utils/date_formatter.dart';
+import '../../../utils/nutrition_analysis_limiter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../home/providers/health_provider.dart';
 import '../widget/journal_sections.dart';
 
@@ -318,6 +320,39 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
     super.dispose();
   }
 
+  void _showLimitReachedDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: const Color(0xFF111826),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFD7B56D), size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Hết lượt quét hôm nay',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Mỗi ngày bạn chỉ được quét tối đa 3 lần món ăn hoặc đồ uống để bảo toàn tài nguyên hệ thống. Hãy quay lại vào ngày mai nhé!',
+          style: TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Đồng ý',
+              style: TextStyle(color: Color(0xFFD7B56D), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
@@ -462,61 +497,107 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: healthData.isLoadingAI
-                  ? null
-                  : () async {
-                      final text = _mealController.text.trim();
-                      if (text.isEmpty) return;
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: healthData.isLoadingAI
+                      ? null
+                      : () async {
+                          final text = _mealController.text.trim();
+                          if (text.isEmpty) return;
 
-                      final provider = context.read<HealthProvider>();
-                      final messenger = ScaffoldMessenger.of(context);
-                      final success = await provider.addMealRecord(text);
-                      if (!mounted) return;
+                          final provider = context.read<HealthProvider>();
+                          final messenger = ScaffoldMessenger.of(context);
+                          final success = await provider.addMealRecord(text);
+                          if (!mounted) return;
 
-                      if (success) {
-                        _mealController.clear();
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã phân tích thành công và cộng dồn dinh dưỡng!'),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
+                          if (success) {
+                            _mealController.clear();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Đã phân tích thành công và cộng dồn dinh dưỡng!'),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          } else {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Vui lòng nhập đúng tên món ăn / thức uống thực tế!'),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                  icon: healthData.isLoadingAI
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        );
-                      } else {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Vui lòng nhập đúng tên món ăn / thức uống thực tế!'),
-                            backgroundColor: Colors.red,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-              icon: healthData.isLoadingAI
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.auto_awesome, size: 16),
-              label: Text(
-                healthData.isLoadingAI ? 'Đang phân tích món ăn...' : 'Phân tích bữa ăn qua AI',
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                        )
+                      : const Icon(Icons.auto_awesome, size: 14),
+                  label: Text(
+                    healthData.isLoadingAI ? 'Đang phân tích...' : 'Phân tích chữ',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final canScan = await NutritionAnalysisLimiter.canScanToday();
+                    if (!canScan) {
+                      if (context.mounted) {
+                        _showLimitReachedDialog(context);
+                      }
+                      return;
+                    }
+
+                    final ImagePicker picker = ImagePicker();
+                    final XFile? image = await picker.pickImage(
+                      source: ImageSource.camera,
+                      maxWidth: 1024,
+                      maxHeight: 1024,
+                      imageQuality: 85,
+                    );
+                    if (image != null) {
+                      if (!context.mounted) return;
+                      await Navigator.of(context).pushNamed(
+                        '/nutrition_preview',
+                        arguments: image.path,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.camera_alt_rounded, size: 14),
+                  label: const Text(
+                    'Chụp ảnh quét',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppColors.radiusMd),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
