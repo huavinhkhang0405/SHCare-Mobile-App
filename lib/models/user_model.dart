@@ -1,31 +1,95 @@
-// lib/models/user_model.dart
-
+/// Mô hình người dùng — Thực thể trung tâm của toàn bộ hệ thống.
+///
+/// Mọi thành viên trong nhóm đều phải sử dụng model này khi cần thông tin user.
+/// KHÔNG tự tạo class riêng.
 class UserModel {
   final String id;
   final String email;
   final String name;
-  final double? height; // Dành cho team User Profile
-  final double? weight; // Dành cho team User Profile
-  final String? gender;
-  
+  final String? avatarUrl;
+  final String? gender; // 'male' | 'female' | 'other'
+  final double? heightCm; // Chiều cao (cm)
+  final double? weightKg; // Cân nặng (kg)
+  final int? birthYear; // Năm sinh
+  final int stepGoal; // Mục tiêu bước chân/ngày
+  final double waterGoalLiters; // Mục tiêu uống nước (lít/ngày)
+  final DateTime createdAt;
+
   UserModel({
     required this.id,
     required this.email,
     required this.name,
-    this.height,
-    this.weight,
+    this.avatarUrl,
     this.gender,
-  });
+    this.heightCm,
+    this.weightKg,
+    this.birthYear,
+    this.stepGoal = 10000,
+    this.waterGoalLiters = 2.0,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
 
-  // Có thể viết sẵn luôn hàm chuyển đổi JSON từ Firebase ở đây
+  /// Chuyển từ JSON (Firestore) → Object
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'],
-      email: json['email'],
-      name: json['name'],
-      height: json['height']?.toDouble(),
-      weight: json['weight']?.toDouble(),
-      gender: json['gender'],
+      id: json['id'] as String,
+      email: json['email'] as String,
+      name: json['name'] as String,
+      avatarUrl: json['avatar_url'] as String?,
+      gender: json['gender'] as String?,
+      heightCm: (json['height_cm'] as num?)?.toDouble(),
+      weightKg: (json['weight_kg'] as num?)?.toDouble(),
+      birthYear: json['birth_year'] as int?,
+      stepGoal: (json['step_goal'] as int?) ?? 10000,
+      waterGoalLiters: (json['water_goal_liters'] as num?)?.toDouble() ?? 2.0,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  /// Chuyển từ Object → JSON (để lưu Firestore)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'name': name,
+      'avatar_url': avatarUrl,
+      'gender': gender,
+      'height_cm': heightCm,
+      'weight_kg': weightKg,
+      'birth_year': birthYear,
+      'step_goal': stepGoal,
+      'water_goal_liters': waterGoalLiters,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  /// Tạo bản sao với một số trường được thay đổi
+  UserModel copyWith({
+    String? id,
+    String? email,
+    String? name,
+    String? avatarUrl,
+    String? gender,
+    double? heightCm,
+    double? weightKg,
+    int? birthYear,
+    int? stepGoal,
+    double? waterGoalLiters,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      gender: gender ?? this.gender,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
+      birthYear: birthYear ?? this.birthYear,
+      stepGoal: stepGoal ?? this.stepGoal,
+      waterGoalLiters: waterGoalLiters ?? this.waterGoalLiters,
+      createdAt: createdAt,
     );
   }
 }

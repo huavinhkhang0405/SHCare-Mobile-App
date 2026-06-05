@@ -46,3 +46,33 @@ app.*.map.json
 
 # Custom environment files
 .env
+
+# Flutter
+.dart_tool/
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Android
+android/local.properties
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# iOS
+**/ios/Flutter/.last_build_id
+
+# Environment
+.env
+
+# Misc
+*.log
+*.swp
+.DS_Store

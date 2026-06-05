@@ -1,24 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-/* =========================================================
-   FILE: app.dart
-
-   Vai trò:
-   - Root UI của toàn bộ ứng dụng
-   - Cấu hình Theme
-   - Cấu hình Navigation / Route
-   - Xác định màn hình khởi đầu của app
-
-   ⚠️ Quy tắc chỉnh sửa:
-
-   UI/UX Team:
-   - Được chỉnh theme
-   - Được chỉnh routing
-   - Được thay đổi màn hình Home
-
-   Logic / Backend / AI Team:
-   - Không chỉnh sửa file này
-   ========================================================= */
+import 'core/theme/app_theme.dart';
+import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/register_screen.dart';
+import 'features/main/screens/main_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -26,76 +12,46 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-
-      /* =========================================================
-         APP CONFIGURATION
-         =========================================================
-         Thông tin chung của ứng dụng
-      */
-
       title: 'SHCare',
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      locale: const Locale('vi', 'VN'),
+      supportedLocales: const [Locale('vi', 'VN'), Locale('en', 'US')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
 
+      // Đặt route mặc định vào Login
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/main': (context) => const MainScreen(),
+      },
+    );
+  }
+}
 
-      /* =========================================================
-         THEME ZONE
-         =========================================================
-         UI Team chỉnh sửa theme tại đây
-         Ví dụ:
-         - màu chủ đạo
-         - font
-         - style button
-         - style input
-      */
+// Widget RootPlaceholder có thể giữ lại làm Splash Screen hoặc màn hình chờ
+class RootPlaceholder extends StatelessWidget {
+  const RootPlaceholder({super.key});
 
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-      ),
-
-
-      /* =========================================================
-         ROUTE ZONE
-         =========================================================
-         UI Team khai báo các màn hình ở đây
-
-         Ví dụ:
-
-         routes: {
-           '/login': (context) => LoginScreen(),
-           '/home': (context) => HomeScreen(),
-           '/chat': (context) => ChatScreen(),
-         },
-
-      */
-
-
-      /* =========================================================
-         HOME SCREEN
-         =========================================================
-         Đây là màn hình đầu tiên của app.
-
-         UI Team sẽ thay thế widget này bằng màn hình thật.
-
-         Ví dụ:
-
-         home: LoginScreen()
-         home: HomeScreen()
-
-      */
-
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'SHCare App',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+  @override
+  Widget build(BuildContext context) {
+    // Logic điều hướng sau khi khởi tạo có thể thêm ở đây
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('SHCare App', style: Theme.of(context).textTheme.displayLarge),
+            const SizedBox(height: 10),
+            const Text('Hệ thống đang khởi tạo...'),
+          ],
         ),
       ),
-
     );
   }
 }

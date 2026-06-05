@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 
 import 'core/config/firebase_options.dart';
 import 'app.dart';
+import 'core/providers/audio_provider.dart';
+import 'features/home/providers/health_provider.dart';
+import 'providers/auth_provider.dart';
 
 /* =========================================================
    FILE: main.dart
@@ -21,7 +24,6 @@ import 'app.dart';
    ========================================================= */
 
 Future<void> main() async {
-
   /* =========================================================
      STEP 1: Khởi tạo Flutter Engine
      =========================================================
@@ -29,7 +31,6 @@ Future<void> main() async {
      hoặc trước khi khởi tạo Firebase
   */
   WidgetsFlutterBinding.ensureInitialized();
-
 
   /* =========================================================
      STEP 2: Load biến môi trường (.env)
@@ -42,8 +43,16 @@ Future<void> main() async {
 
      Nhóm AI hoặc Backend có thể thêm key vào file .env
   */
-  await dotenv.load(fileName: ".env");
-
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    // In ra console dòng chữ đỏ để đập vào mắt developer
+    debugPrint('🚨 [LỖI NGHIÊM TRỌNG]: Không tìm thấy file .env!');
+    debugPrint(
+      '👉 Vui lòng copy file env.example, đổi tên thành .env và điền API Key trước khi chạy app.',
+    );
+    throw Exception('Missing .env file');
+  }
 
   /* =========================================================
      STEP 3: Khởi tạo Firebase
@@ -58,10 +67,7 @@ Future<void> main() async {
 
      ⚠️ Không chỉnh sửa nếu không cần thiết
   */
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   /* =========================================================
      STEP 4: Chạy ứng dụng Flutter
@@ -72,7 +78,6 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-
         /* =================================================
            PROVIDER ZONE
            =================================================
@@ -99,8 +104,10 @@ Future<void> main() async {
         */
 
         // Ví dụ:
-        // ChangeNotifierProvider(create: (_) => AuthProvider()),
         // ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AudioProvider()),
+        ChangeNotifierProvider(create: (_) => HealthProvider()),
 
         // Provider tạm để tránh lỗi khi chưa có Provider nào
         Provider.value(value: ''),

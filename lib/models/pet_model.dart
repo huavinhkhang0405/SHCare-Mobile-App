@@ -1,0 +1,123 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class PetModel {
+  final String id;
+  final String userId;
+  final String name;
+
+  // ─── Level & EXP ──────────────────────────────────────────
+  final int level;
+  final int currentExp;
+  final int expToNextLevel;
+
+  // ─── Trạng thái hiện tại ──────────────────────────────────
+  /// Ví dụ: 'Năng động', 'Khát', 'Mệt mỏi', 'Vui vẻ'
+  final String state;
+
+  /// Tin nhắn Pet nói với người dùng (do AI hoặc rule-based tạo)
+  final String message;
+
+  /// Nhiệm vụ Pet giao cho người dùng
+  final String currentTask;
+  final bool isTaskCompleted;
+
+  // ─── Metadata ─────────────────────────────────────────────
+  final DateTime lastInteraction;
+
+  PetModel({
+    required this.id,
+    required this.userId,
+    this.name = 'SHCare Pet',
+    this.level = 1,
+    this.currentExp = 0,
+    this.expToNextLevel = 100,
+    this.state = 'Năng động',
+    this.message = 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
+    this.currentTask = 'Đi bộ 500 bước để khởi động ngày mới.',
+    this.isTaskCompleted = false,
+    DateTime? lastInteraction,
+  }) : lastInteraction = lastInteraction ?? DateTime.now();
+
+  double get expProgress => currentExp / expToNextLevel;
+
+  factory PetModel.fromJson(Map<String, dynamic> json) {
+    return PetModel(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      name: (json['name'] as String?) ?? 'SHCare Pet',
+      level: (json['level'] as int?) ?? 1,
+      currentExp: (json['current_exp'] as int?) ?? 0,
+      expToNextLevel: (json['exp_to_next_level'] as int?) ?? 100,
+      state: (json['state'] as String?) ?? 'Năng động',
+      message: (json['message'] as String?) ?? '',
+      currentTask: (json['current_task'] as String?) ?? '',
+      isTaskCompleted: (json['is_task_completed'] as bool?) ?? false,
+      lastInteraction: json['last_interaction'] != null
+          ? DateTime.parse(json['last_interaction'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'name': name,
+      'level': level,
+      'current_exp': currentExp,
+      'exp_to_next_level': expToNextLevel,
+      'state': state,
+      'message': message,
+      'current_task': currentTask,
+      'is_task_completed': isTaskCompleted,
+      'last_interaction': lastInteraction.toIso8601String(),
+    };
+  }
+
+  PetModel copyWith({
+    String? name,
+    int? level,
+    int? currentExp,
+    int? expToNextLevel,
+    String? state,
+    String? message,
+    String? currentTask,
+    bool? isTaskCompleted,
+  }) {
+    return PetModel(
+      id: id,
+      userId: userId,
+      name: name ?? this.name,
+      level: level ?? this.level,
+      currentExp: currentExp ?? this.currentExp,
+      expToNextLevel: expToNextLevel ?? this.expToNextLevel,
+      state: state ?? this.state,
+      message: message ?? this.message,
+      currentTask: currentTask ?? this.currentTask,
+      isTaskCompleted: isTaskCompleted ?? this.isTaskCompleted,
+      lastInteraction: DateTime.now(),
+    );
+  }
+
+  factory PetModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      return PetModel(id: doc.id, userId: '');
+    }
+    return PetModel(
+      id: doc.id,
+      userId: (data['user_id'] as String?) ?? '',
+      name: (data['name'] as String?) ?? 'SHCare Pet',
+      level: (data['level'] as int?) ?? 1,
+      currentExp: (data['current_exp'] as int?) ?? 0,
+      expToNextLevel: (data['exp_to_next_level'] as int?) ?? 100,
+      state: (data['state'] as String?) ?? 'Năng động',
+      message: (data['message'] as String?) ?? '',
+      currentTask: (data['current_task'] as String?) ?? '',
+      isTaskCompleted: (data['is_task_completed'] as bool?) ?? false,
+      lastInteraction: data['last_interaction'] != null
+          ? DateTime.tryParse(data['last_interaction'] as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+}
