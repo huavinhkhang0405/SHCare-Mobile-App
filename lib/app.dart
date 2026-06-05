@@ -8,6 +8,8 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/onboarding_screen.dart';
 import 'features/home/screens/profile_detail_screen.dart';
+import 'features/home/screens/nutrition_scan_preview_screen.dart';
+import 'features/home/screens/nutrition_scan_result_screen.dart';
 import 'features/main/screens/main_screen.dart';
 import 'providers/auth_provider.dart';
 
@@ -37,6 +39,8 @@ class MyApp extends StatelessWidget {
         '/onboarding': (context) => const OnboardingScreen(),
         '/main': (context) => const MainScreen(),
         '/profile': (context) => const ProfileDetailScreen(),
+        '/nutrition_preview': (context) => const NutritionScanPreviewScreen(),
+        '/nutrition_result': (context) => const NutritionScanResultScreen(),
       },
     );
   }

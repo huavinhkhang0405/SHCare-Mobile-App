@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/task_suggestion.dart';
 import '../../../services/ai/gemini_service.dart';
 import '../../../services/pet/pet_service.dart';
+import '../../../models/nutrition_analysis_result.dart';
 
 class HealthProvider extends ChangeNotifier {
   // Dữ liệu cốt lõi cho Home
@@ -22,8 +23,11 @@ class HealthProvider extends ChangeNotifier {
   int _hrv = 52;
   int _restingBpm = 58;
   int _caloriesBurned = 486;
+  int _caloriesConsumed = 0;
   int _deepSleepMinutes = 198;
   int _healthScore = 88;
+
+  int get caloriesConsumed => _caloriesConsumed;
 
   int _hrvDelta = 8;
   int _calorieDelta = 11;
@@ -387,6 +391,24 @@ class HealthProvider extends ChangeNotifier {
   }
 
   // Hành động thủ công từ UI
+  Future<void> addNutritionInfo(NutritionAnalysisResult result) async {
+    _caloriesConsumed += result.calories;
+    await _saveCaloriesConsumed();
+
+    if (result.waterLiters > 0) {
+      _waterLiters += result.waterLiters;
+      if (_waterLiters > _waterGoal) {
+        _waterLiters = _waterGoal;
+      }
+      _syncWaterProgress();
+    }
+
+    _simulateEnergyAndMood();
+    _updateHealthScore();
+    _refreshPetInsights();
+    notifyListeners();
+  }
+
   void addWater() {
     _waterLiters += 0.25;
     if (_waterLiters > _waterGoal) {
@@ -640,6 +662,15 @@ class HealthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _saveCaloriesConsumed() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('calories_consumed', _caloriesConsumed);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu calories consumed: $e');
+    }
+  }
+
   Future<void> _loadStateFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -649,6 +680,7 @@ class HealthProvider extends ChangeNotifier {
 
       if (lastResetStr == todayStr) {
         _isDailyTaskCompleted = prefs.getBool('is_daily_task_completed') ?? false;
+        _caloriesConsumed = prefs.getInt('calories_consumed') ?? 0;
         final String? aiTasksStr = prefs.getString('ai_tasks_json');
         if (aiTasksStr != null && aiTasksStr.isNotEmpty) {
           final List<dynamic> decoded = json.decode(aiTasksStr);
@@ -663,10 +695,12 @@ class HealthProvider extends ChangeNotifier {
       } else {
         // Reset cho ngày mới
         _isDailyTaskCompleted = false;
+        _caloriesConsumed = 0;
         _aiTasks = [];
         _lastAiFetchTime = null;
         await prefs.setString('last_task_reset_date', todayStr);
         await prefs.setBool('is_daily_task_completed', false);
+        await prefs.setInt('calories_consumed', 0);
         await prefs.setString('ai_tasks_json', '');
         await prefs.setString('last_ai_fetch_time', '');
         await refreshAiTasks();
@@ -686,10 +720,12 @@ class HealthProvider extends ChangeNotifier {
       if (lastResetStr != todayStr) {
         // Reset ngày mới
         _isDailyTaskCompleted = false;
+        _caloriesConsumed = 0;
         _aiTasks = [];
         _lastAiFetchTime = null;
         await prefs.setString('last_task_reset_date', todayStr);
         await prefs.setBool('is_daily_task_completed', false);
+        await prefs.setInt('calories_consumed', 0);
         await prefs.setString('ai_tasks_json', '');
         await prefs.setString('last_ai_fetch_time', '');
         await refreshAiTasks();

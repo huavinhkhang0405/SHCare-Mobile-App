@@ -16,6 +16,8 @@ import '../widgets/home_sections.dart';
 
 import '../../../models/pet_model.dart';
 import '../../../services/pet/pet_service.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../utils/nutrition_analysis_limiter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,11 +40,58 @@ class _HomeScreenState extends State<HomeScreen> {
   int _previousLevel = 1;
   String? _lastTask;
 
+  int _remainingScans = 3;
+
+  Future<void> _updateRemainingScans() async {
+    final count = await NutritionAnalysisLimiter.getTodayScanCount();
+    if (mounted) {
+      setState(() {
+        _remainingScans = (3 - count).clamp(0, 3);
+      });
+    }
+  }
+
+  void _showLimitReachedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: const Color(0xFF111826),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFD7B56D), size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Hết lượt quét hôm nay',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Mỗi ngày bạn chỉ được quét tối đa 3 lần món ăn hoặc đồ uống để bảo toàn tài nguyên hệ thống. Hãy quay lại vào ngày mai nhé!',
+          style: TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Đồng ý',
+              style: TextStyle(color: Color(0xFFD7B56D), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _handleScroll());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleScroll();
+      _updateRemainingScans();
+    });
   }
 
   @override
@@ -197,6 +246,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
+              const SizedBox(height: 12),
+              _buildNutritionScanCard(context, healthData),
               
               // =========================================================
               // KHU VỰC PET ĐÃ ĐƯỢC BỌC STREAM BUILDER
@@ -367,6 +418,95 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 10),
               const HomeRecentActivityCard(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNutritionScanCard(BuildContext context, HealthProvider healthData) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppColors.radiusMd),
+        onTap: () async {
+          final canScan = await NutritionAnalysisLimiter.canScanToday();
+          if (!canScan) {
+            _showLimitReachedDialog();
+            return;
+          }
+
+          final ImagePicker picker = ImagePicker();
+          final XFile? image = await picker.pickImage(
+            source: ImageSource.camera,
+            maxWidth: 1024,
+            maxHeight: 1024,
+            imageQuality: 85,
+          );
+          if (image != null) {
+            if (!context.mounted) return;
+            await Navigator.of(context).pushNamed(
+              '/nutrition_preview',
+              arguments: image.path,
+            );
+            _updateRemainingScans();
+          }
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.cardBg,
+            borderRadius: BorderRadius.circular(AppColors.radiusMd),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: AppColors.softShadow,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.fireTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const GifIcon(
+                  assetPath: AppGifIcons.fire,
+                  fallbackIcon: Icons.camera_alt_rounded,
+                  fallbackColor: AppColors.fireIcon,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Quét dinh dưỡng AI',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Đã nạp: ${healthData.caloriesConsumed} kcal · Còn $_remainingScans lượt quét',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textHint,
+                size: 22,
+              ),
             ],
           ),
         ),
