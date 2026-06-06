@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:screen_state/screen_state.dart';
+import 'package:app_usage/app_usage.dart';
 
 import '../../../models/task_suggestion.dart';
 import '../../../services/ai/gemini_service.dart';
@@ -11,13 +14,85 @@ import '../../../services/pet/pet_service.dart';
 import '../../../models/nutrition_analysis_result.dart';
 import '../../../services/sensor/health_sensor_service.dart';
 import '../../../services/screen_time_service.dart';
+import '../../../models/user_model.dart';
 
 class HealthProvider extends ChangeNotifier {
-  String _currentUserEmail = 'shcare_tester_001';
+  UserModel? _currentUser;
+  UserModel? get currentUser => _currentUser;
+
+  String _currentUserId = '';
   int _lastDeviceSteps = -1;
   bool _isScreenTimeExceeded = false;
 
   bool get isScreenTimeExceeded => _isScreenTimeExceeded;
+
+  // --- THÊM CÁC BIẾN CHO GIẤC NGỦ CHỐNG GIAN LẬN ---
+  int _sleepMinutes = 465; // Mặc định 7h 45m
+  StreamSubscription<ScreenStateEvent>? _screenSubscription;
+  bool _shouldShowSleepConfirmation = false;
+  DateTime? _sleepStartToConfirm;
+  DateTime? _sleepWakeToConfirm;
+
+  // Onboarding Giấc ngủ Tiệm tiến (Progressive Bedtime Onboarding)
+  bool _hasOnboardedBedtime = false;
+  String? _onboardingBedtimeInsight;
+
+  bool get hasOnboardedBedtime => _hasOnboardedBedtime;
+  String? get onboardingBedtimeInsight => _onboardingBedtimeInsight;
+
+  Future<void> setHasOnboardedBedtime(bool value) async {
+    _hasOnboardedBedtime = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_getKey('has_onboarded_bedtime'), value);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu has_onboarded_bedtime: $e');
+    }
+    notifyListeners();
+  }
+
+  Future<void> fetchBedtimeOnboardingInsight(String bedtime, String wakeTime) async {
+    try {
+      final insight = await _geminiService.getBedtimeOnboardingInsight(
+        targetBedtime: bedtime,
+        targetWakeTime: wakeTime,
+      );
+      _onboardingBedtimeInsight = insight;
+      _refreshPetInsights();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi fetchBedtimeOnboardingInsight: $e');
+    }
+  }
+
+  void completeDailyTaskOnboardingBedtime() {
+    _currentExp += 50;
+    var didLevelUp = false;
+    if (_currentExp >= _expToNextLevel) {
+      _level++;
+      _currentExp -= _expToNextLevel;
+      didLevelUp = true;
+    }
+    _petTask = 'Đã hoàn thành thiết lập mục tiêu giấc ngủ! +50 EXP';
+    _triggerPetEnvironmentEffect(didLevelUp: didLevelUp);
+    _petService.gainExperience(_currentUserId, 50);
+    _refreshPetInsights();
+    notifyListeners();
+  }
+
+  int get sleepMinutes => _sleepMinutes;
+  bool get shouldShowSleepConfirmation => _shouldShowSleepConfirmation;
+  DateTime? get sleepStartToConfirm => _sleepStartToConfirm;
+  DateTime? get sleepWakeToConfirm => _sleepWakeToConfirm;
+
+  String get sleepDurationLabel => '${_sleepMinutes ~/ 60}h ${_sleepMinutes % 60}m';
+
+  String get sleepQuality {
+    if (_sleepMinutes >= 480) return 'Rất tốt';
+    if (_sleepMinutes >= 420) return 'Tốt';
+    if (_sleepMinutes >= 360) return 'Tạm ổn';
+    return 'Kém';
+  }
 
   // Cấu hình môi trường và ngưỡng cảnh báo
   static const bool isDebugMode = true;
@@ -31,16 +106,15 @@ class HealthProvider extends ChangeNotifier {
   String get screenTimeDetails => _screenTimeDetails;
 
   String _getKey(String key) {
-    return '${_currentUserEmail}_$key';
+    return '${_currentUserId}_$key';
   }
 
-  void updateUser(String email) async {
-    final cleanEmail = email.isNotEmpty
-        ? email.replaceAll('@', '_').replaceAll('.', '_')
-        : 'shcare_tester_001';
+  void updateUser(UserModel? user) async {
+    final cleanId = user?.id ?? '';
+    _currentUser = user;
 
-    if (_currentUserEmail != cleanEmail) {
-      _currentUserEmail = cleanEmail;
+    if (_currentUserId != cleanId) {
+      _currentUserId = cleanId;
       _lastDeviceSteps = -1; // Reset device steps baseline for the new profile
       _isScreenTimeExceeded = false;
       _hasShownScreenTimeAlert = false;
@@ -48,13 +122,93 @@ class HealthProvider extends ChangeNotifier {
       
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('current_user_email', cleanEmail);
+        await prefs.setString('current_user_email', cleanId);
       } catch (e) {
         debugPrint('🚨 [HealthProvider] Lỗi khi lưu current_user_email: $e');
       }
 
       _loadStateFromPrefs();
       checkScreenTimeLimit();
+    } else {
+      // Cập nhật lại các chỉ số nếu người dùng thay đổi chiều cao/cân nặng
+      _updateHealthScore();
+      _refreshPetInsights();
+      notifyListeners();
+    }
+  }
+
+  // Getters cho các công thức y khoa cá nhân hóa
+  double get bmi {
+    final w = _currentUser?.weightKg ?? 70.0;
+    final h = _currentUser?.heightCm ?? 170.0;
+    if (h <= 0) return 0.0;
+    return w / ((h / 100.0) * (h / 100.0));
+  }
+
+  String get bmiCategory {
+    final val = bmi;
+    if (val <= 0) return 'Chưa rõ';
+    if (val < 18.5) return 'Thiếu cân (Underweight)';
+    if (val < 23.0) return 'Bình thường (Normal)';
+    if (val < 25.0) return 'Tiền béo phì (Overweight)';
+    if (val < 30.0) return 'Béo phì độ I (Obese I)';
+    return 'Béo phì độ II (Obese II)';
+  }
+
+  Color get bmiColor {
+    final val = bmi;
+    if (val <= 0) return Colors.grey;
+    if (val < 18.5) return const Color(0xFFF1C40F); // Vàng
+    if (val < 23.0) return const Color(0xFF2ECC71); // Xanh
+    if (val < 25.0) return const Color(0xFFE67E22); // Cam
+    if (val < 30.0) return const Color(0xFFE74C3C); // Đỏ
+    return const Color(0xFF9B59B6); // Tím
+  }
+
+  double get bmr {
+    final w = _currentUser?.weightKg ?? 70.0;
+    final h = _currentUser?.heightCm ?? 170.0;
+    final birthYear = _currentUser?.birthYear ?? (DateTime.now().year - 22);
+    final age = DateTime.now().year - birthYear;
+    final isFemale = _currentUser?.gender == 'Nữ' || _currentUser?.gender == 'Female';
+
+    if (isFemale) {
+      return 10.0 * w + 6.25 * h - 5.0 * age - 161.0;
+    } else {
+      return 10.0 * w + 6.25 * h - 5.0 * age + 5.0;
+    }
+  }
+
+  double get tdee {
+    double multiplier = 1.2;
+    final level = _currentUser?.activityLevel ?? 'Vừa phải';
+    if (level.contains('Không')) {
+      multiplier = 1.2;
+    } else if (level.contains('Ít')) {
+      multiplier = 1.375;
+    } else if (level.contains('Vừa') || level == 'Vừa phải') {
+      multiplier = 1.55;
+    } else if (level.contains('Nhiều')) {
+      multiplier = 1.725;
+    } else {
+      multiplier = 1.55; // fallback
+    }
+    return bmr * multiplier;
+  }
+
+  int get targetCalories {
+    final valBmr = bmr;
+    final valTdee = tdee;
+    final valBmi = bmi;
+
+    if (valBmi <= 0) return 2000;
+
+    if (valBmi < 18.5) {
+      return (valTdee + 300).round(); // Tăng cân: Tăng 300 calo
+    } else if (valBmi >= 23.0) {
+      return (valTdee - 500).clamp(valBmr, valTdee).round(); // Giảm cân: Giảm 500 calo (nhưng không dưới BMR)
+    } else {
+      return valTdee.round(); // Bình thường: Giữ cân
     }
   }
 
@@ -153,6 +307,7 @@ class HealthProvider extends ChangeNotifier {
     _startSimulation();
     // GỌI HÀM CẢM BIẾN THẬT
     _initRealSensors();
+    _initSleepTracking();
     // Tải trạng thái đã lưu từ SharedPreferences
     _loadStateFromPrefs();
     checkScreenTimeLimit();
@@ -170,29 +325,24 @@ class HealthProvider extends ChangeNotifier {
   String get petState => _petState;
   String get petMessage => _petMessage;
   
+  /// Kiểm tra xem tất cả nhiệm vụ AI trong ngày đã hoàn thành chưa
   bool get allTasksCompleted {
-    final activeAiTasks = _aiTasks.where((t) => !t.isCompleted && !t.isDismissed).toList();
-    if (activeAiTasks.isNotEmpty) {
-      return false;
-    }
-    return _isDailyTaskCompleted;
+    if (_aiTasks.isEmpty) return false;
+    // Tất cả 3 nhiệm vụ đều phải isCompleted
+    return _aiTasks.every((t) => t.isCompleted);
   }
 
-  bool get canRefreshAiTasks {
-    if (_isLoadingAiTasks) return false;
-    if (allTasksCompleted) return true;
-    if (_lastAiFetchTime == null) return true;
+  /// Số nhiệm vụ đã hoàn thành trong ngày
+  int get completedTaskCount => _aiTasks.where((t) => t.isCompleted).length;
 
-    final now = DateTime.now();
-    final diff = now.difference(_lastAiFetchTime!);
-    return diff.inHours >= 4;
-  }
+  /// Số nhiệm vụ còn lại chưa hoàn thành
+  int get remainingTaskCount => _aiTasks.where((t) => !t.isCompleted).length;
 
   String get petTask {
     if (allTasksCompleted) {
-      return 'Nhiệm vụ đã hoàn thành';
+      return 'Đã hoàn thành tất cả nhiệm vụ hôm nay! 🎉';
     }
-    final activeTasks = _aiTasks.where((t) => !t.isCompleted && !t.isDismissed).toList();
+    final activeTasks = _aiTasks.where((t) => !t.isCompleted).toList();
     if (activeTasks.isNotEmpty) {
       return activeTasks.first.title;
     }
@@ -319,12 +469,30 @@ class HealthProvider extends ChangeNotifier {
   void _refreshPetInsights() {
     _isLoadingAI = false;
 
+    if (_onboardingBedtimeInsight != null) {
+      _petState = 'Vui vẻ';
+      _petMessage = _onboardingBedtimeInsight!;
+      _petTask = 'Đã hoàn thành thiết lập mục tiêu giấc ngủ! 🎉';
+      return;
+    }
+
     if (_isScreenTimeExceeded) {
       _petState = 'Mệt mỏi';
       _petMessage =
           'Bạn đã dùng mạng xã hội / game quá 5 phút hôm nay rồi đó. Đứng dậy đi lại và thư giãn mắt đi nào!';
       if (!_isDailyTaskCompleted) {
         _petTask = 'Rời màn hình: Nhắm mắt thư giãn 5 phút.';
+      }
+      return;
+    }
+
+    // Thêm kiểm tra Calo tiêu thụ so với Calo mục tiêu
+    final calTarget = targetCalories;
+    if (_consumedCalories > calTarget + 200) {
+      _petState = 'Mệt mỏi';
+      _petMessage = 'Calo nạp vào đã vượt mức mục tiêu rồi ($consumedCalories / $calTarget kcal). Bạn nên hạn chế ăn vặt và vận động nhẹ nhàng nhé!';
+      if (!_isDailyTaskCompleted) {
+        _petTask = 'Đi bộ nhẹ nhàng 10 phút để tiêu hao năng lượng.';
       }
       return;
     }
@@ -348,6 +516,16 @@ class HealthProvider extends ChangeNotifier {
           'Nhịp cơ thể đang hơi căng, nghỉ một chút sẽ giúp bạn phục hồi tốt hơn.';
       if (!_isDailyTaskCompleted) {
         _petTask = 'Hít thở sâu 2 phút và vươn vai nhẹ nhàng.';
+      }
+      return;
+    }
+
+    // Phản ứng khen ngợi khi nạp calo hợp lý
+    if (_consumedCalories >= calTarget * 0.8 && _consumedCalories <= calTarget + 200) {
+      _petState = 'Vui vẻ';
+      _petMessage = 'Hôm nay bạn nạp năng lượng rất điều độ ($consumedCalories / $calTarget kcal). Cơ thể bạn đang ở trạng thái cân bằng tuyệt vời!';
+      if (!_isDailyTaskCompleted) {
+        _petTask = 'Hoàn thành nốt mục tiêu vận động trong ngày.';
       }
       return;
     }
@@ -383,51 +561,39 @@ class HealthProvider extends ChangeNotifier {
   // }
 
   void _simulateWater() {
-    if (_random.nextDouble() > 0.98) {
-      _waterLiters += 0.1;
-      if (_waterLiters > _waterGoal) {
-        _waterLiters = _waterGoal;
-      }
-    }
     _syncWaterProgress();
   }
 
   void _simulateRecoveryMetrics(int stepDelta) {
-    if (stepDelta > 0) {
-      _caloriesBurned += max(
-        1,
-        (stepDelta * (0.03 + _random.nextDouble() * 0.03)).round(),
-      );
-    } else if (_random.nextDouble() > 0.9) {
-      _caloriesBurned += 1;
-    }
-    _caloriesBurned = _caloriesBurned.clamp(320, 1200).toInt();
+    // 1. Calories Burned calculated from actual steps (Thực tế)
+    _caloriesBurned = (_steps * 0.04).round() + 80;
+    _caloriesBurned = _caloriesBurned.clamp(80, 2500).toInt();
 
-    _hrv += _random.nextInt(3) - 1;
-    _hrv = _hrv.clamp(40, 72).toInt();
+    // 2. HRV calculated from user mood and energy level (Tính thực tế)
+    final hrvBase = _currentUser != null ? 62 : 55;
+    final moodFactor = (3 - _moodIndex) * 5; // mood 0 -> +15, mood 3 -> +0
+    final energyFactor = (_energyLevel * 10).round(); // energy 1.0 -> +10
+    _hrv = hrvBase + moodFactor + energyFactor;
+    _hrv = _hrv.clamp(40, 85).toInt();
 
-    final targetResting = (_bpm - 12 + (_random.nextInt(3) - 1))
-        .clamp(52, 72)
-        .toInt();
-    if (_restingBpm < targetResting) {
-      _restingBpm += 1;
-    } else if (_restingBpm > targetResting) {
-      _restingBpm -= 1;
-    }
+    // 3. Resting HR calculated from age & mood (Thực tế)
+    final birthYear = _currentUser?.birthYear ?? (DateTime.now().year - 22);
+    final age = DateTime.now().year - birthYear;
+    final baseResting = 58 + (age % 4); // 58 to 61 base
+    final stressFactor = _moodIndex >= 2 ? (_moodIndex * 3) : 0; // stress adds heart rate
+    _restingBpm = baseResting + stressFactor;
+    _restingBpm = _restingBpm.clamp(50, 80).toInt();
 
-    if (_random.nextDouble() > 0.97) {
-      _deepSleepMinutes += _random.nextInt(5) - 2;
-      _deepSleepMinutes = _deepSleepMinutes.clamp(160, 250).toInt();
-    }
+    // 4. Deep Sleep Minutes calculated from mood and activity (Thực tế)
+    final activityBonus = (_steps >= 8000) ? 20 : 0;
+    final stressPenalty = _moodIndex >= 2 ? (_moodIndex * 15) : 0;
+    _deepSleepMinutes = 200 + activityBonus - stressPenalty;
+    _deepSleepMinutes = _deepSleepMinutes.clamp(120, 280).toInt();
 
-    _hrvDelta += _random.nextInt(3) - 1;
-    _hrvDelta = _hrvDelta.clamp(4, 14).toInt();
-
-    _calorieDelta += _random.nextInt(3) - 1;
-    _calorieDelta = _calorieDelta.clamp(6, 18).toInt();
-
-    _deepSleepDeltaMinutes += _random.nextInt(5) - 2;
-    _deepSleepDeltaMinutes = _deepSleepDeltaMinutes.clamp(8, 40).toInt();
+    // Delta values are relatively stable (tỉ lệ tăng trưởng)
+    _hrvDelta = (_moodIndex == 0) ? 12 : (_moodIndex == 3 ? -8 : 4);
+    _calorieDelta = (_steps >= 10000) ? 25 : (_steps <= 2000 ? -12 : 8);
+    _deepSleepDeltaMinutes = (_moodIndex == 0) ? 35 : (_moodIndex == 3 ? -25 : 15);
   }
 
   void _simulateEnergyAndMood() {
@@ -474,20 +640,30 @@ class HealthProvider extends ChangeNotifier {
   }
 
   void _updateHealthScore() {
-    final stepScore = (_steps / _goal).clamp(0.0, 1.0);
-    final hydrationScore = (_waterPercentage / 100).clamp(0.0, 1.0);
-    final recoveryScore = ((_hrv - 40) / 30).clamp(0.0, 1.0);
-    final sleepScore = (_deepSleepMinutes / 240).clamp(0.0, 1.0);
-    final energyScore = _energyLevel.clamp(0.0, 1.0);
+    // 1. HRV Score (RMSSD): baseline 65 ms
+    final scoreHrv = (100.0 - (65.0 - _hrv) * 10.0).clamp(0.0, 100.0);
+    
+    // 2. Resting HR Score (baseline 60 bpm)
+    final scoreRhr = (_restingBpm <= 60)
+        ? 100.0
+        : (100.0 - (_restingBpm - 60) * 5.83).clamp(0.0, 100.0);
+        
+    // 3. Deep Sleep Score (ideal >= 120 mins)
+    final scoreSleep = (_deepSleepMinutes >= 120)
+        ? 100.0
+        : (_deepSleepMinutes / 120.0 * 100.0).clamp(0.0, 100.0);
+        
+    // 4. Active Calories Score vs Active TDEE target (BMR * 0.375, clamped [300, 700])
+    final activeCalorieGoal = (bmr * 0.375).clamp(300.0, 700.0);
+    final scoreActivity = (_caloriesBurned / activeCalorieGoal * 100.0).clamp(0.0, 100.0);
 
-    final raw =
-        (stepScore * 0.28) +
-        (hydrationScore * 0.18) +
-        (recoveryScore * 0.2) +
-        (sleepScore * 0.2) +
-        (energyScore * 0.14);
-
-    _healthScore = (raw * 100).round().clamp(60, 98).toInt();
+    // Composite Health Score
+    final raw = (scoreHrv * 0.25) +
+                (scoreRhr * 0.20) +
+                (scoreSleep * 0.30) +
+                (scoreActivity * 0.25);
+                
+    _healthScore = raw.round().clamp(0, 100).toInt();
   }
 
   void _syncWaterProgress() {
@@ -678,14 +854,17 @@ class HealthProvider extends ChangeNotifier {
     _timer?.cancel();
     _effectResetTimer?.cancel();
     _sensorService.dispose(); // Hủy lắng nghe luồng đếm bước chân
+    _screenSubscription?.cancel(); // Hủy lắng nghe sự kiện màn hình
     super.dispose();
   }
 
   // ─── AI Tasks Methods ─────────────────────────────────────
 
-  /// Gọi Gemini AI để sinh nhiệm vụ mới dựa trên chỉ số hiện tại.
-  Future<void> refreshAiTasks() async {
+  /// Tự động gọi Gemini AI để sinh 3 nhiệm vụ cho ngày mới.
+  /// Chỉ được gọi 1 lần/ngày (khi chưa có nhiệm vụ hoặc khi reset ngày mới).
+  Future<void> _generateDailyAiTasks() async {
     if (_isLoadingAiTasks) return; // Tránh gọi trùng
+    if (_aiTasks.isNotEmpty) return; // Đã có nhiệm vụ rồi, không tạo lại
 
     _isLoadingAiTasks = true;
     _aiTasksError = null;
@@ -703,15 +882,23 @@ class HealthProvider extends ChangeNotifier {
         waterGoal: _waterGoal,
         energyLevel: _energyLevel,
         screenTimeData: screenUsage,
+        heightCm: _currentUser?.heightCm,
+        weightKg: _currentUser?.weightKg,
+        birthYear: _currentUser?.birthYear,
+        gender: _currentUser?.gender,
+        activityLevel: _currentUser?.activityLevel,
+        targetBedtime: _currentUser?.targetBedtime,
+        targetWakeTime: _currentUser?.targetWakeTime,
       );
-      _aiTasks = tasks;
+      // Đảm bảo luôn đúng 3 nhiệm vụ
+      _aiTasks = tasks.take(3).toList();
       _aiTasksError = null;
-      _lastAiFetchTime = DateTime.now(); // Cập nhật thời điểm gọi AI thành công
-      _saveAiTasks(); // Lưu lại danh sách nhiệm vụ AI mới và thời gian gọi
-      debugPrint('✅ [HealthProvider] Đã nhận ${tasks.length} nhiệm vụ AI');
+      _lastAiFetchTime = DateTime.now();
+      _saveAiTasks();
+      debugPrint('✅ [HealthProvider] Đã tạo ${_aiTasks.length} nhiệm vụ AI cho ngày mới');
     } catch (e) {
       _aiTasksError = 'Không thể tải gợi ý AI: $e';
-      debugPrint('🚨 [HealthProvider] Lỗi refreshAiTasks: $e');
+      debugPrint('🚨 [HealthProvider] Lỗi _generateDailyAiTasks: $e');
     }
 
     _isLoadingAiTasks = false;
@@ -744,17 +931,8 @@ class HealthProvider extends ChangeNotifier {
     _triggerPetEnvironmentEffect(didLevelUp: didLevelUp);
     
     // Cộng EXP cho pet trên Firestore database
-    _petService.gainExperience(_currentUserEmail, expGained);
+    _petService.gainExperience(_currentUserId, expGained);
     
-    _saveAiTasks();
-    notifyListeners();
-  }
-
-  /// Bỏ qua (dismiss) 1 nhiệm vụ AI.
-  void dismissAiTask(String taskId) {
-    final index = _aiTasks.indexWhere((t) => t.id == taskId);
-    if (index < 0) return;
-    _aiTasks[index] = _aiTasks[index].copyWith(isDismissed: true);
     _saveAiTasks();
     notifyListeners();
   }
@@ -793,7 +971,7 @@ class HealthProvider extends ChangeNotifier {
     _triggerPetEnvironmentEffect(didLevelUp: didLevelUp);
     
     // Cộng EXP cho pet trên Firestore database
-    _petService.gainExperience(_currentUserEmail, 20);
+    _petService.gainExperience(_currentUserId, 20);
     
     notifyListeners();
   }
@@ -861,6 +1039,7 @@ class HealthProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload(); // Đảm bảo SharedPreferences đồng bộ giữa UI và Background Isolate
+      _hasOnboardedBedtime = prefs.getBool(_getKey('has_onboarded_bedtime')) ?? false;
       final now = DateTime.now();
       final todayStr = "${now.year}-${now.month}-${now.day}";
       final lastResetStr = prefs.getString(_getKey('last_task_reset_date'));
@@ -905,6 +1084,7 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = 0;
         _consumedFat = 0;
         _todayFoods = [];
+        _onboardingBedtimeInsight = null;
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
         await prefs.setBool(_getKey('has_shown_screentime_alert'), false);
@@ -919,6 +1099,11 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setStringList(_getKey('today_foods'), []);
       }
       notifyListeners();
+
+      // Tự động tạo nhiệm vụ AI nếu chưa có (ngày mới hoặc lần đầu vào app)
+      if (_aiTasks.isEmpty && _currentUserId.isNotEmpty) {
+        _generateDailyAiTasks();
+      }
     } catch (e) {
       debugPrint('🚨 [HealthProvider] Lỗi khi load trạng thái: $e');
     }
@@ -944,6 +1129,7 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = 0;
         _consumedFat = 0;
         _todayFoods = [];
+        _onboardingBedtimeInsight = null;
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
         await prefs.setBool(_getKey('has_shown_screentime_alert'), false);
@@ -957,6 +1143,11 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
         notifyListeners();
+
+        // Tự động tạo nhiệm vụ AI cho ngày mới
+        if (_currentUserId.isNotEmpty) {
+          _generateDailyAiTasks();
+        }
       }
     } catch (e) {
       debugPrint('🚨 [HealthProvider] Lỗi khi check day change: $e');
@@ -1004,5 +1195,247 @@ class HealthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('🚨 [HealthProvider] Lỗi khi lưu dinh dưỡng: $e');
     }
+  }
+
+  // --- CÁC PHƯƠNG THỨC ĐO GIẤC NGỦ CHỐNG GIAN LẬN ---
+
+  void _initSleepTracking() {
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      debugPrint('ℹ️ [HealthProvider] Không chạy trên mobile. Bỏ qua lắng nghe sự kiện màn hình.');
+      return;
+    }
+    try {
+      _screenSubscription = Screen().screenStateStream?.listen(
+        _handleScreenStateEvent,
+        onError: (error) {
+          debugPrint('🚨 [HealthProvider] Lỗi Stream ScreenState: $error');
+        }
+      );
+      debugPrint('✅ [HealthProvider] Đã khởi tạo lắng nghe sự kiện màn hình (Sleep Tracking)');
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Không thể đăng ký lắng nghe sự kiện màn hình: $e');
+    }
+  }
+
+  void _handleScreenStateEvent(ScreenStateEvent event) async {
+    final now = DateTime.now();
+    debugPrint('📱 [HealthProvider] Sự kiện màn hình: $event lúc $now');
+
+    if (event == ScreenStateEvent.SCREEN_OFF) {
+      // Xác định vùng rình rập (Bedtime ± 1.5 giờ)
+      final targetBed = _currentUser?.targetBedtime ?? '23:00';
+      if (_isTimeInTrackingWindow(now, targetBed)) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_getKey('temp_sleep_start'), now.toIso8601String());
+          debugPrint('😴 [HealthProvider] Ghi nhận mốc ngủ giả định (temp_sleep_start): $now');
+        } catch (e) {
+          debugPrint('🚨 [HealthProvider] Lỗi khi lưu temp_sleep_start: $e');
+        }
+      }
+    } else if (event == ScreenStateEvent.SCREEN_ON) {
+      await _triggerWakeUpEvent(now);
+    }
+  }
+
+  bool _isTimeInTrackingWindow(DateTime now, String targetBedtimeStr) {
+    try {
+      final parts = targetBedtimeStr.split(':');
+      if (parts.length != 2) return false;
+      final targetHour = int.parse(parts[0]);
+      final targetMin = int.parse(parts[1]);
+
+      final bedtimeToday = DateTime(now.year, now.month, now.day, targetHour, targetMin);
+
+      final diff1 = now.difference(bedtimeToday).inMinutes.abs();
+      final diff2 = now.difference(bedtimeToday.add(const Duration(days: 1))).inMinutes.abs();
+      final diff3 = now.difference(bedtimeToday.subtract(const Duration(days: 1))).inMinutes.abs();
+
+      final minDiff = [diff1, diff2, diff3].reduce(min);
+      return minDiff <= 90; // ±1.5 giờ (90 phút)
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi phân tích targetBedtime: $e');
+      return false;
+    }
+  }
+
+  Future<void> _triggerWakeUpEvent(DateTime wakeTime) async {
+    if (_currentUserId.isEmpty) return;
+    if (_shouldShowSleepConfirmation) return; // Đang chờ xác nhận mốc cũ, không đè lên
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final tempSleepStartStr = prefs.getString(_getKey('temp_sleep_start'));
+
+      if (tempSleepStartStr != null && tempSleepStartStr.isNotEmpty) {
+        final tempSleepStart = DateTime.tryParse(tempSleepStartStr);
+        if (tempSleepStart != null) {
+          final rawDuration = wakeTime.difference(tempSleepStart);
+          if (rawDuration.inMinutes >= 30) {
+            // Không kích hoạt wake-up nếu đang trong vùng Bedtime Tracking Window
+            final targetBed = _currentUser?.targetBedtime ?? '23:00';
+            if (_isTimeInTrackingWindow(wakeTime, targetBed)) {
+              debugPrint('😴 [HealthProvider] Nhận SCREEN_ON nhưng vẫn trong Bedtime Tracking Window. Bỏ qua.');
+              return;
+            }
+
+            // Chạy đối soát chống gian lận
+            final actualSleepStart = await _runSleepAntiCheat(tempSleepStart, wakeTime);
+
+            _sleepStartToConfirm = actualSleepStart;
+            _sleepWakeToConfirm = wakeTime;
+            _shouldShowSleepConfirmation = true;
+            notifyListeners();
+            debugPrint('😴 [HealthProvider] Yêu cầu xác nhận giấc ngủ: từ $actualSleepStart đến $wakeTime');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi _triggerWakeUpEvent: $e');
+    }
+  }
+
+  Future<void> checkSleepRecordOnAppOpen() async {
+    if (_currentUserId.isEmpty) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final tempSleepStartStr = prefs.getString(_getKey('temp_sleep_start'));
+
+      if (tempSleepStartStr != null && tempSleepStartStr.isNotEmpty) {
+        final tempSleepStart = DateTime.tryParse(tempSleepStartStr);
+        if (tempSleepStart != null) {
+          final now = DateTime.now();
+          final diff = now.difference(tempSleepStart);
+          if (diff.inHours >= 1 && diff.inHours <= 24) {
+            if (diff.inMinutes >= 30) {
+              await _triggerWakeUpEvent(now);
+            }
+          } else if (diff.inHours > 24) {
+            await prefs.remove(_getKey('temp_sleep_start'));
+            debugPrint('🧹 [HealthProvider] Xóa mốc temp_sleep_start quá hạn 24 giờ.');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi checkSleepRecordOnAppOpen: $e');
+    }
+  }
+
+  Future<DateTime> _runSleepAntiCheat(DateTime start, DateTime wake) async {
+    DateTime actualStart = start;
+
+    if (!Platform.isAndroid) {
+      debugPrint('🛡️ [Anti-Cheat] Không phải thiết bị Android. Bỏ qua đối soát app_usage.');
+      return actualStart;
+    }
+
+    try {
+      final appUsage = AppUsage();
+      final infoList = await appUsage.getAppUsage(start, wake);
+
+      final Map<String, String> targetApps = {
+        'com.facebook.katana': 'Facebook',
+        'com.zhiliaoapp.musically': 'TikTok',
+        'com.ss.android.ugc.trill': 'TikTok',
+        'com.google.android.youtube': 'YouTube',
+        'com.instagram.android': 'Instagram',
+        'com.tencent.ig': 'PUBG Mobile',
+        'com.garena.game.kgvn': 'Liên Quân Mobile',
+        'com.android.chrome': 'Chrome',
+        'com.coccoc.trinhduyet': 'Cốc Cốc',
+        'com.netflix.mediaclient': 'Netflix',
+      };
+
+      DateTime? latestForeground;
+      for (var info in infoList) {
+        if (targetApps.containsKey(info.packageName) && info.usage > Duration.zero) {
+          final lastFore = info.lastForeground;
+          if (lastFore.isAfter(start) && lastFore.isBefore(wake)) {
+            if (latestForeground == null || lastFore.isAfter(latestForeground)) {
+              latestForeground = lastFore;
+            }
+          }
+        }
+      }
+
+      if (latestForeground != null) {
+        actualStart = latestForeground;
+        debugPrint('🛡️ [Anti-Cheat] Phát hiện dùng ứng dụng lướt web/mạng xã hội/game lúc $latestForeground. Dời mốc Actual Sleep Start thành: $actualStart');
+      } else {
+        debugPrint('🛡️ [Anti-Cheat] Không phát hiện gian lận. Mốc bắt đầu ngủ: $actualStart.');
+      }
+    } catch (e) {
+      debugPrint('🚨 [Anti-Cheat] Lỗi truy vấn app_usage: $e');
+    }
+
+    return actualStart;
+  }
+
+  Future<void> confirmSleep(DateTime start, DateTime wake) async {
+    final duration = wake.difference(start);
+    _sleepMinutes = duration.inMinutes.clamp(0, 1440);
+    _deepSleepMinutes = (_sleepMinutes * 0.23).round();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_getKey('temp_sleep_start'));
+      await prefs.setInt(_getKey('sleep_minutes'), _sleepMinutes);
+      await prefs.setInt(_getKey('deep_sleep_minutes'), _deepSleepMinutes);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi lưu kết quả giấc ngủ: $e');
+    }
+
+    _shouldShowSleepConfirmation = false;
+    _sleepStartToConfirm = null;
+    _sleepWakeToConfirm = null;
+    _isLoadingAI = true;
+    _petMessage = 'Đang phân tích dữ liệu giấc ngủ của bạn...';
+    notifyListeners();
+
+    try {
+      final targetBed = _currentUser?.targetBedtime ?? '23:00';
+      final targetWake = _currentUser?.targetWakeTime ?? '07:00';
+      final insight = await _geminiService.getSleepInsight(
+        start: start,
+        wake: wake,
+        durationHours: _sleepMinutes / 60.0,
+        targetBedtime: targetBed,
+        targetWakeTime: targetWake,
+      );
+      _petMessage = insight;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_getKey('pet_message'), _petMessage);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi AI Sleep Insight: $e');
+      _petMessage = 'Cảm ơn bạn đã cập nhật thông tin giấc ngủ.';
+    }
+
+    _isLoadingAI = false;
+    _updateHealthScore();
+    notifyListeners();
+  }
+
+  void dismissSleepConfirmation() async {
+    _shouldShowSleepConfirmation = false;
+    _sleepStartToConfirm = null;
+    _sleepWakeToConfirm = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_getKey('temp_sleep_start'));
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi xóa temp_sleep_start: $e');
+    }
+    notifyListeners();
+  }
+
+  DateTime normalizeSleepTimes(DateTime start, DateTime wake) {
+    if (start.isAfter(wake)) {
+      start = start.subtract(const Duration(days: 1));
+    }
+    return start;
   }
 }

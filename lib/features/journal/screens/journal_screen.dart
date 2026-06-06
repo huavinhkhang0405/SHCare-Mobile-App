@@ -356,7 +356,7 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
   @override
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
-    final calProgress = (healthData.consumedCalories / 2000.0).clamp(0.0, 1.0);
+    final calProgress = (healthData.consumedCalories / healthData.targetCalories.toDouble()).clamp(0.0, 1.0);
 
     return Container(
       width: double.infinity,
@@ -383,7 +383,7 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
                 ),
               ),
               Text(
-                '${healthData.consumedCalories} / 2000 kcal',
+                '${healthData.consumedCalories} / ${healthData.targetCalories} kcal',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,

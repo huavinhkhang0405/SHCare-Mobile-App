@@ -58,10 +58,10 @@ class _LoginScreenState extends State<LoginScreen>
       _passwordController.text,
     );
     if (success && mounted) {
-      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else {
+      if (auth.currentUser?.isOnboarded == true) {
         Navigator.of(context).pushReplacementNamed('/main');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
       }
     }
   }
@@ -70,10 +70,10 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithGoogle();
     if (success && mounted) {
-      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else {
+      if (auth.currentUser?.isOnboarded == true) {
         Navigator.of(context).pushReplacementNamed('/main');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
       }
     }
   }
@@ -82,10 +82,10 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.read<AuthProvider>();
     final success = await auth.loginWithFacebook();
     if (success && mounted) {
-      if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else {
+      if (auth.currentUser?.isOnboarded == true) {
         Navigator.of(context).pushReplacementNamed('/main');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
       }
     }
   }

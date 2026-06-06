@@ -103,7 +103,7 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
 
   /// Hàm chính để sinh nhiệm vụ sức khỏe dựa trên chỉ số real-time.
   ///
-  /// Trả về [List<TaskSuggestion>] từ 1-3 nhiệm vụ.
+  /// Trả về [List<TaskSuggestion>] luôn đúng 3 nhiệm vụ.
   /// Nếu API lỗi → fallback về danh sách dự phòng.
   Future<List<TaskSuggestion>> generateHealthTasks({
     required int steps,
@@ -113,6 +113,13 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
     required double waterGoal,
     required double energyLevel,
     required String screenTimeData,
+    double? heightCm,
+    double? weightKg,
+    int? birthYear,
+    String? gender,
+    String? activityLevel,
+    String? targetBedtime,
+    String? targetWakeTime,
   }) async {
     // Nếu chưa có API key, trả fallback ngay
     if (!_isConfigured) {
@@ -120,9 +127,23 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
       return _getFallbackTasks();
     }
 
+    final age = birthYear != null ? DateTime.now().year - birthYear : 22;
+    final bmiVal = (heightCm != null && heightCm > 0 && weightKg != null)
+        ? weightKg / ((heightCm / 100) * (heightCm / 100))
+        : 22.0;
+
     // ─── 1. Prompt Engineering ──────────────────────────────
     final prompt = '''
-Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa vào các chỉ số sức khỏe real-time sau đây của người dùng, hãy tạo ra từ 1 đến 3 nhiệm vụ nhỏ (micro-tasks) để giúp họ cải thiện tình trạng hiện tại.
+Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa vào các chỉ số sức khỏe real-time và thông tin cá nhân/thói quen sau đây của người dùng, hãy tạo ra ĐÚNG 3 nhiệm vụ nhỏ (micro-tasks) để giúp họ cải thiện tình trạng hiện tại. Mỗi ngày người dùng chỉ được làm tối đa 3 nhiệm vụ này.
+
+[Thông tin cá nhân & Thói quen]
+- Chiều cao: ${heightCm?.toStringAsFixed(0) ?? '170'} cm
+- Cân nặng: ${weightKg?.toStringAsFixed(1) ?? '70'} kg
+- Chỉ số khối cơ thể (BMI): ${bmiVal.toStringAsFixed(1)}
+- Giới tính: ${gender ?? 'Khác'}
+- Tuổi: $age tuổi
+- Tần suất tập thể dục: ${activityLevel ?? 'Vừa phải'}
+- Mục tiêu giấc ngủ: đi ngủ lúc ${targetBedtime ?? '23:00'} và dậy lúc ${targetWakeTime ?? '07:00'}
 
 [Chỉ số hiện tại]
 - Bước chân: $steps / $stepGoal
@@ -132,13 +153,24 @@ Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa v
 - 📱 Hoạt động kỹ thuật số (Screen Time): $screenTimeData
 
 [Quy tắc sinh nhiệm vụ]
-1. Phân tích: Nếu "Lượng nước" dưới 50% mục tiêu, BẮT BUỘC có nhiệm vụ uống nước (type: "water").
-2. Phân tích: Nếu "Nhịp tim" lớn hơn 90bpm, BẮT BUỘC có nhiệm vụ hít thở hoặc nghỉ ngơi (type: "relax").
-3. DIGITAL DETOX: Đọc biến "Hoạt động kỹ thuật số (Screen Time)". Nếu người dùng sử dụng Mạng xã hội / Game (TikTok, Facebook, YouTube, Instagram...) VƯỢT QUÁ 5 phút (ngưỡng thử nghiệm theo yêu cầu của người dùng để test tính năng hoạt động), BẮT BUỘC sinh ra 1 nhiệm vụ rời xa màn hình (Ví dụ: "Nhắm mắt thư giãn 5 phút", "Đi dạo ngoài trời 15 phút" với type: "relax" hoặc "exercise").
-4. Trọng số EXP: Nhiệm vụ dễ (20 EXP), Vừa (30 EXP), Khó (50 EXP).
-5. Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
+1. BẮT BUỘC tạo ĐÚNG 3 nhiệm vụ, không hơn không kém.
+2. Phân tích: Nếu "Lượng nước" dưới 50% mục tiêu, BẮT BUỘC có nhiệm vụ uống nước (type: "water").
+3. Phân tích: Nếu "Nhịp tim" lớn hơn 90bpm, BẮT BUỘC có nhiệm vụ hít thở hoặc nghỉ ngơi (type: "relax").
+4. DIGITAL DETOX: Đọc biến "Hoạt động kỹ thuật số (Screen Time)". Nếu người dùng sử dụng Mạng xã hội / Game (TikTok, Facebook, YouTube, Instagram...) VƯỢT QUÁ 5 phút (ngưỡng thử nghiệm theo yêu cầu của người dùng để test tính năng hoạt động), BẮT BUỘC sinh ra 1 nhiệm vụ rời xa màn hình (Ví dụ: "Nhắm mắt thư giãn 5 phút", "Đi dạo ngoài trời 15 phút" với type: "relax" hoặc "exercise").
+5. Trọng số EXP: Nhiệm vụ dễ (20 EXP), Vừa (30 EXP), Khó (50 EXP).
+6. Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
+7. 3 nhiệm vụ phải đa dạng, không trùng lặp loại (type).
+8. CÁ NHÂN HÓA PHÙ HỢP THỂ TRẠNG:
+   - Dựa vào Tần suất tập thể dục của người dùng để thiết kế độ khó của bài tập phù hợp:
+     + Nếu Tần suất là "Không tập luyện": Giao nhiệm vụ siêu nhẹ nhàng (đi bộ 5-10 phút, đứng dậy giãn cơ 2 phút). KHÔNG giao chạy bộ hay tập nặng.
+     + Nếu Tần suất là "Ít (1-2 ngày/tuần)": Giao nhiệm vụ nhẹ đến trung bình (đi bộ 10-15 phút, vươn vai).
+     + Nếu Tần suất là "Vừa phải (3-5 ngày/tuần)": Giao các bài tập trung bình (như squat 15-20 cái, đi bộ nhanh 15 phút).
+     + Nếu Tần suất là "Nhiều (6-7 ngày/tuần)": Có thể giao nhiệm vụ nâng cao (chạy bộ nhẹ 20 phút, bài tập HIIT ngắn).
+   - Dựa vào BMI:
+     + Nếu người dùng béo phì hoặc thừa cân (BMI >= 23): Tránh giao bài tập nhảy cao hoặc tác động mạnh đến khớp gối, ưu tiên đi bộ, giãn cơ hoặc tập thân trên.
+   - Dựa vào mục tiêu giấc ngủ: Giao nhiệm vụ chuẩn bị ngủ (type: "relax") ví dụ như tắt thiết bị trước giờ đi ngủ mục tiêu 30 phút.
 
-TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU:
+TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
 [
   {
     "task_name": "Tên nhiệm vụ (tối đa 5 từ)",
@@ -209,7 +241,78 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU:
     }
   }
 
-  /// Danh sách nhiệm vụ dự phòng khi AI không khả dụng.
+  /// Đánh giá giấc ngủ của người dùng và đưa ra lời khuyên chuẩn y khoa/nhịp sinh học.
+  Future<String> getSleepInsight({
+    required DateTime start,
+    required DateTime wake,
+    required double durationHours,
+    required String targetBedtime,
+    required String targetWakeTime,
+  }) async {
+    if (!_isConfigured) {
+      return 'Bạn đã ngủ ${durationHours.toStringAsFixed(1)} tiếng. Hãy cố gắng duy trì thói quen ngủ điều độ nhé!';
+    }
+
+    final prompt = '''
+Bạn là một trợ lý ảo/thú cưng đồng hành cùng người dùng trong ứng dụng SHCare. Người dùng vừa ghi nhận giấc ngủ đêm qua:
+- Thực tế bắt đầu ngủ: ${start.hour}:${start.minute.toString().padLeft(2, '0')}
+- Thực tế thức dậy: ${wake.hour}:${wake.minute.toString().padLeft(2, '0')}
+- Tổng thời gian ngủ thực tế: ${durationHours.toStringAsFixed(1)} tiếng
+- Giờ ngủ mục tiêu đã cài đặt: $targetBedtime
+- Giờ thức dậy mục tiêu đã cài đặt: $targetWakeTime
+
+Hãy đưa ra một đánh giá ngắn gọn (khoảng 2-3 câu, tối đa 60 từ), thân thiện nhưng chuẩn y khoa, đánh giá sự phù hợp của giấc ngủ này với nhịp sinh học (circadian rhythm) và giờ ngủ mục tiêu của họ. Đưa ra lời khuyên hữu ích để họ phục hồi cơ bắp và thần kinh tốt hơn.
+Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự đặc biệt thừa.
+''';
+
+    try {
+      final modelForText = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+        ),
+      );
+      final response = await modelForText.generateContent([Content.text(prompt)]);
+      return response.text?.trim() ?? 'Chúc bạn một ngày mới tràn đầy năng lượng!';
+    } catch (e) {
+      debugPrint('🚨 [GeminiService] Lỗi getSleepInsight: $e');
+      return 'Bạn đã ngủ ${durationHours.toStringAsFixed(1)} tiếng. Hãy cố gắng duy trì nhịp ngủ đều đặn để phục hồi cơ thể nhé!';
+    }
+  }
+
+  /// Đưa ra lời khuyên/insight của Pet AI cho việc cài đặt giờ ngủ ban đầu.
+  Future<String> getBedtimeOnboardingInsight({
+    required String targetBedtime,
+    required String targetWakeTime,
+  }) async {
+    if (!_isConfigured) {
+      return 'Tuyệt vời! Mình sẽ giúp bạn theo dõi giấc ngủ lúc $targetBedtime mỗi ngày nhé!';
+    }
+
+    final prompt = '''
+Bạn là một thú cưng ảo đồng hành (Pet AI) cực kỳ thân thiện trong ứng dụng sức khỏe SHCare. Người dùng vừa thiết lập giờ ngủ mục tiêu là $targetBedtime và giờ thức dậy là $targetWakeTime.
+Hãy đưa ra một phản hồi siêu dễ thương, khích lệ (tối đa 40 từ), nói rằng mục tiêu ngủ này rất tuyệt (ví dụ giúp ngủ đủ 8 tiếng, giữ nhịp sinh học tốt) và hứa sẽ canh chừng giấc ngủ cho họ thật tốt.
+Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự đặc biệt thừa.
+''';
+
+    try {
+      final modelForText = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+        ),
+      );
+      final response = await modelForText.generateContent([Content.text(prompt)]);
+      return response.text?.trim() ?? 'Tuyệt vời! Mình sẽ canh giấc ngủ cho cậu thật tốt!';
+    } catch (e) {
+      debugPrint('🚨 [GeminiService] Lỗi getBedtimeOnboardingInsight: $e');
+      return 'Tuyệt vời! Mình sẽ giúp bạn theo dõi giấc ngủ lúc $targetBedtime mỗi ngày nhé!';
+    }
+  }
+
+  /// Danh sách nhiệm vụ dự phòng khi AI không khả dụng (luôn 3 nhiệm vụ).
   List<TaskSuggestion> _getFallbackTasks() {
     return [
       TaskSuggestion(
@@ -231,6 +334,17 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU:
         category: 'Tinh thần',
         expReward: 30,
         type: 'rest',
+        priority: 2,
+        source: 'rule_based',
+      ),
+      TaskSuggestion(
+        id: 'fallback_exercise_${DateTime.now().millisecondsSinceEpoch}',
+        userId: 'mock_user_001',
+        title: 'Đi bộ 500 bước',
+        description: 'Đi bộ nhẹ nhàng xung quanh để kích hoạt cơ thể.',
+        category: 'Vận động',
+        expReward: 30,
+        type: 'exercise',
         priority: 2,
         source: 'rule_based',
       ),

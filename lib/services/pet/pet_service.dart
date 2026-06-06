@@ -39,15 +39,61 @@ class PetService {
     }
   }
 
+  // Khởi tạo Pet cấp 1 cho người dùng mới
+  Future<void> initializePet(String userId) async {
+    final petRef = _db
+        .collection('users')
+        .doc(userId)
+        .collection('pets')
+        .doc('current_pet');
+
+    final snapshot = await petRef.get();
+    if (!snapshot.exists) {
+      final newPet = PetModel(
+        id: 'current_pet',
+        userId: userId,
+        level: 1,
+        currentExp: 0,
+        expToNextLevel: 100,
+        state: 'Năng động',
+        message: 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
+        currentTask: 'Đi bộ 500 bước để khởi động ngày mới.',
+        isTaskCompleted: false,
+      );
+      await petRef.set(newPet.toJson());
+    }
+  }
+
   // 1. Lắng nghe dữ liệu Pet theo thời gian thực
   Stream<PetModel> streamPetData(String userId) {
+    if (userId.isEmpty) {
+      return Stream.value(PetModel(id: 'current_pet', userId: ''));
+    }
+
     return _db
         .collection('users')
         .doc(userId)
         .collection('pets')
         .doc('current_pet')
         .snapshots()
-        .map((snapshot) => PetModel.fromFirestore(snapshot));
+        .map((snapshot) {
+          if (!snapshot.exists) {
+            // Lazy initialization ngầm dưới nền
+            initializePet(userId);
+            return PetModel(
+              id: 'current_pet',
+              userId: userId,
+              level: 1,
+              currentExp: 0,
+              expToNextLevel: 100,
+              state: 'Năng động',
+              message: 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
+              currentTask: 'Đi bộ 500 bước để khởi động ngày mới.',
+              isTaskCompleted: false,
+            );
+          }
+          return PetModel.fromFirestore(snapshot);
+        });
   }
 
   // 2. Logic cộng EXP khi làm nhiệm vụ sức khoẻ

@@ -401,3 +401,184 @@ class _DayMetric {
   final String label;
   final double value;
 }
+
+class StatsBodyMetricsCard extends StatelessWidget {
+  final double heightCm;
+  final double weightKg;
+  final double bmi;
+  final String bmiCategory;
+  final Color bmiColor;
+  final int bmr;
+  final int tdee;
+  final int targetCalories;
+
+  const StatsBodyMetricsCard({
+    super.key,
+    required this.heightCm,
+    required this.weightKg,
+    required this.bmi,
+    required this.bmiCategory,
+    required this.bmiColor,
+    required this.bmr,
+    required this.tdee,
+    required this.targetCalories,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppColors.radiusMd),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySurface,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.accessibility_new_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Thành phần cơ thể & Chuyển hóa',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildMetricRow('Chiều cao', '${heightCm.toStringAsFixed(1)} cm', 'Cân nặng', '${weightKg.toStringAsFixed(1)} kg'),
+          const Divider(height: 24, color: AppColors.cardBorder),
+          _buildBmiRow(),
+          const Divider(height: 24, color: AppColors.cardBorder),
+          _buildMetricRow('Tỉ lệ BMR', '${bmr.round()} kcal', 'Năng lượng TDEE', '${tdee.round()} kcal'),
+          const Divider(height: 24, color: AppColors.cardBorder),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Mục tiêu Calo nạp vào:',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                '$targetCalories kcal/ngày',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricRow(String label1, String val1, String label2, String val2) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label1,
+                style: const TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                val1,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label2,
+                style: const TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                val2,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBmiRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chỉ số BMI',
+                style: TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                bmi.toStringAsFixed(1),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Trạng thái thể trạng',
+                style: TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: bmiColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: bmiColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  bmiCategory,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: bmiColor),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

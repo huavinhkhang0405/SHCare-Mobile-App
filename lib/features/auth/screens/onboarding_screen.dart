@@ -27,7 +27,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _nextPage() {
-    if (_currentStep < 3) {
+    if (_currentStep < 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -49,8 +49,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _submitData() async {
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.saveOnboardingData(
-      birthYear: _selectedBirthYear,
-      gender: _selectedGender,
+      birthYear: 1995,
+      gender: 'Khác',
       heightCm: _selectedHeight,
       weightKg: _selectedWeight,
     );
@@ -91,8 +91,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   });
                 },
                 children: [
-                  _buildGenderStep(),
-                  _buildBirthYearStep(),
                   _buildHeightStep(),
                   _buildWeightStep(),
                 ],
@@ -117,24 +115,151 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Bước ${_currentStep + 1} / 4',
+                'Bước ${_currentStep + 1} / 2',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
                 ),
               ),
-              if (_currentStep > 0)
-                TextButton(
-                  onPressed: _previousPage,
-                  child: const Text(
-                    'Quay lại',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  if (_currentStep == 0)
+                    TextButton(
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            title: const Text(
+                              'Đăng xuất',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            content: const Text(
+                              'Bạn muốn quay lại màn hình đăng nhập để chọn tài khoản khác?',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text(
+                                  'Hủy',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text(
+                                  'Đồng ý',
+                                  style: TextStyle(
+                                    color: AppColors.error,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true && mounted) {
+                          final authProvider = context.read<AuthProvider>();
+                          final navigator = Navigator.of(context);
+                          await authProvider.logout();
+                          navigator.pushReplacementNamed('/login');
+                        }
+                      },
+                      child: const Row(
+                        children: [
+                          Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
+                          SizedBox(width: 4),
+                          Text(
+                            'Sai tài khoản?',
+                            style: TextStyle(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    TextButton(
+                      onPressed: _previousPage,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          title: const Text(
+                            'Bỏ qua thông tin',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          content: const Text(
+                            'Bạn có chắc chắn muốn bỏ qua? Các thông tin này có thể được cập nhật sau trong mục Hồ sơ cá nhân.',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text(
+                                'Hủy',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text(
+                                'Bỏ qua',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true && mounted) {
+                        final authProvider = context.read<AuthProvider>();
+                        final navigator = Navigator.of(context);
+                        final success = await authProvider.skipOnboarding();
+                        if (success && mounted) {
+                          navigator.pushReplacementNamed('/main');
+                        }
+                      }
+                    },
+                    child: const Text(
+                      'Bỏ qua',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -151,7 +276,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 height: 6,
-                width: MediaQuery.of(context).size.width * ((_currentStep + 1) / 4) - 48,
+                width: MediaQuery.of(context).size.width * ((_currentStep + 1) / 2) - 48,
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(10),
@@ -531,7 +656,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 )
               : Text(
-                  _currentStep == 3 ? 'Hoàn thành' : 'Tiếp tục',
+                  _currentStep == 1 ? 'Hoàn thành' : 'Tiếp tục',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../models/user_model.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -16,6 +17,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   final _weightController = TextEditingController();
   String _selectedGender = 'Nam';
   int _selectedBirthYear = 1995;
+  String _targetBedtime = '23:00';
+  String _targetWakeTime = '07:00';
+  String _activityLevel = 'Vừa phải (3-5 ngày/tuần)';
   bool _isEditing = false;
 
   @override
@@ -33,6 +37,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       _weightController.text = user.weightKg?.toStringAsFixed(1) ?? '';
       _selectedGender = user.gender ?? 'Nam';
       _selectedBirthYear = user.birthYear ?? 1995;
+      _targetBedtime = user.targetBedtime;
+      _targetWakeTime = user.targetWakeTime;
+
+      final rawLevel = user.activityLevel;
+      if (rawLevel == 'Không' || rawLevel == 'Không tập luyện') {
+        _activityLevel = 'Không tập luyện';
+      } else if (rawLevel == 'Ít' || rawLevel == 'Ít (1-2 ngày/tuần)') {
+        _activityLevel = 'Ít (1-2 ngày/tuần)';
+      } else if (rawLevel == 'Nhiều' || rawLevel == 'Nhiều (6-7 ngày/tuần)') {
+        _activityLevel = 'Nhiều (6-7 ngày/tuần)';
+      } else {
+        _activityLevel = 'Vừa phải (3-5 ngày/tuần)';
+      }
     }
   }
 
@@ -63,6 +80,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       gender: _selectedGender,
       heightCm: height,
       weightKg: weight,
+      targetBedtime: _targetBedtime,
+      targetWakeTime: _targetWakeTime,
+      activityLevel: _activityLevel,
     );
 
     if (success && mounted) {
@@ -175,6 +195,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               if (!_isEditing) ...[
                 // ─── VIEW MODE ───
                 _buildMetricsGrid(user),
+                _buildSleepTargetsSection(user),
+                _buildActivityLevelSection(user),
                 const SizedBox(height: 24),
                 _buildBmiCard(bmi, bmiCategory, bmiColor, bmiAdvice),
               ] else ...[
@@ -505,7 +527,221 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 18),
+        const Text('Mục tiêu giấc ngủ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () async {
+                  final timeParts = _targetBedtime.split(':');
+                  final initialTime = timeParts.length == 2
+                      ? TimeOfDay(hour: int.parse(timeParts[0]), minute: int.parse(timeParts[1]))
+                      : const TimeOfDay(hour: 23, minute: 0);
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: initialTime,
+                    helpText: 'Chọn giờ đi ngủ mục tiêu',
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _targetBedtime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+                    });
+                  }
+                },
+                child: _buildTimeDisplayCard('Giờ đi ngủ', _targetBedtime),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: InkWell(
+                onTap: () async {
+                  final timeParts = _targetWakeTime.split(':');
+                  final initialTime = timeParts.length == 2
+                      ? TimeOfDay(hour: int.parse(timeParts[0]), minute: int.parse(timeParts[1]))
+                      : const TimeOfDay(hour: 7, minute: 0);
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: initialTime,
+                    helpText: 'Chọn giờ thức dậy mục tiêu',
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _targetWakeTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+                    });
+                  }
+                },
+                child: _buildTimeDisplayCard('Giờ thức dậy', _targetWakeTime),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        const Text('Tần suất tập luyện', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _activityLevel,
+          decoration: _inputDecoration('Tần suất tập luyện', prefixIcon: Icons.fitness_center_rounded),
+          items: [
+            'Không tập luyện',
+            'Ít (1-2 ngày/tuần)',
+            'Vừa phải (3-5 ngày/tuần)',
+            'Nhiều (6-7 ngày/tuần)',
+          ].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+          onChanged: (val) {
+            setState(() {
+              _activityLevel = val ?? 'Vừa phải (3-5 ngày/tuần)';
+            });
+          },
+        ),
       ],
+    );
+  }
+
+  Widget _buildActivityLevelSection(UserModel user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(top: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.fitness_center_rounded, color: Colors.teal, size: 22),
+              SizedBox(width: 10),
+              Text(
+                'Tần suất tập luyện',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            user.activityLevel,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeDisplayCard(String title, String time) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: AppColors.textHint, fontSize: 11)),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Icon(Icons.access_time_rounded, color: AppColors.primary, size: 18),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSleepTargetsSection(UserModel user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(top: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.nights_stay_rounded, color: Colors.indigo, size: 22),
+              SizedBox(width: 10),
+              Text(
+                'Mục tiêu giấc ngủ',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Giờ đi ngủ mục tiêu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.targetBedtime,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Giờ dậy mục tiêu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.targetWakeTime,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

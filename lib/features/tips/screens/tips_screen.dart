@@ -29,10 +29,8 @@ class TipsScreen extends StatelessWidget {
         ? 'Ngủ sớm 22:00'
         : 'Giữ 22:30';
 
-    // Lọc AI tasks chưa bị dismiss (hiển thị cả các nhiệm vụ đã hoàn thành ở trạng thái mờ)
-    final activeTasks = healthData.aiTasks
-        .where((t) => !t.isDismissed)
-        .toList();
+    // Hiển thị tất cả nhiệm vụ AI (không lọc dismiss vì đã bỏ chức năng dismiss)
+    final activeTasks = healthData.aiTasks;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -105,62 +103,29 @@ class TipsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // Nút refresh
-                  if (healthData.canRefreshAiTasks)
-                    GestureDetector(
-                      onTap: healthData.isLoadingAiTasks
-                          ? null
-                          : () => context.read<HealthProvider>().refreshAiTasks(),
-                      child: Row(
-                        children: [
-                          if (healthData.isLoadingAiTasks)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            )
-                          else
-                            const Icon(
-                              Icons.refresh_rounded,
-                              size: 16,
-                              color: AppColors.primary,
-                            ),
-                          const SizedBox(width: 4),
-                          Text(
-                            healthData.isLoadingAiTasks
-                                ? 'Đang phân tích...'
-                                : 'Làm mới',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.lock_clock,
-                          size: 16,
-                          color: AppColors.textHint,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Gọi AI sau 4 giờ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textHint,
-                          ),
-                        ),
-                      ],
+                  // Hiển thị số nhiệm vụ đã hoàn thành / tổng
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
+                    decoration: BoxDecoration(
+                      color: healthData.allTasksCompleted
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : AppColors.textHint.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${healthData.completedTaskCount}/${activeTasks.length} hoàn thành',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: healthData.allTasksCompleted
+                            ? AppColors.primary
+                            : AppColors.textHint,
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -211,12 +176,11 @@ class TipsScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _AiTaskCard(
                       task: task,
-                      onComplete: () => context
-                          .read<HealthProvider>()
-                          .completeAiTask(task.id),
-                      onDismiss: () => context
-                          .read<HealthProvider>()
-                          .dismissAiTask(task.id),
+                      onComplete: task.isCompleted
+                          ? null
+                          : () => context
+                              .read<HealthProvider>()
+                              .completeAiTask(task.id),
                     ),
                   ),
                 ),
@@ -313,13 +277,13 @@ class TipsScreen extends StatelessWidget {
       child: const Column(
         children: [
           Icon(
-            Icons.check_circle_outline_rounded,
+            Icons.auto_awesome_rounded,
             size: 36,
             color: AppColors.primary,
           ),
           SizedBox(height: 10),
           Text(
-            'Đã hoàn thành tất cả nhiệm vụ! 🎉',
+            'Đang chờ AI tạo nhiệm vụ...',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -328,7 +292,7 @@ class TipsScreen extends StatelessWidget {
           ),
           SizedBox(height: 4),
           Text(
-            'Nhấn "Làm mới" để AI phân tích và gợi ý thêm.',
+            '3 nhiệm vụ sẽ được tạo tự động mỗi ngày lúc 00:00.',
             style: TextStyle(
               fontSize: 12,
               color: AppColors.textHint,
@@ -343,13 +307,11 @@ class TipsScreen extends StatelessWidget {
 // ─── AI Task Card Widget ──────────────────────────────────────
 class _AiTaskCard extends StatelessWidget {
   final TaskSuggestion task;
-  final VoidCallback onComplete;
-  final VoidCallback onDismiss;
+  final VoidCallback? onComplete;
 
   const _AiTaskCard({
     required this.task,
     required this.onComplete,
-    required this.onDismiss,
   });
 
   static const Map<String, IconData> _typeIcons = {
@@ -516,29 +478,6 @@ class _AiTaskCard extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!task.isCompleted)
-                            GestureDetector(
-                              onTap: onDismiss,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white10,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  'Bỏ qua',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white54,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          if (!task.isCompleted) const SizedBox(width: 6),
                           if (!task.isCompleted)
                             GestureDetector(
                               onTap: onComplete,

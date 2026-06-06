@@ -46,6 +46,22 @@ class StatsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const StatsSectionHeader(
+                title: 'Chỉ số cơ thể & Chuyển hóa',
+                actionLabel: 'Định lượng y khoa',
+              ),
+              const SizedBox(height: 10),
+              StatsBodyMetricsCard(
+                heightCm: healthData.currentUser?.heightCm ?? 170.0,
+                weightKg: healthData.currentUser?.weightKg ?? 70.0,
+                bmi: healthData.bmi,
+                bmiCategory: healthData.bmiCategory,
+                bmiColor: healthData.bmiColor,
+                bmr: healthData.bmr.round(),
+                tdee: healthData.tdee.round(),
+                targetCalories: healthData.targetCalories,
+              ),
+              const SizedBox(height: 20),
+              const StatsSectionHeader(
                 title: 'Xu hướng 7 ngày',
                 actionLabel: 'So với tuần trước',
               ),

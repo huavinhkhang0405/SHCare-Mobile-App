@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../../../providers/auth_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:workmanager/workmanager.dart';
@@ -42,6 +43,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _lastTask;
 
   int _remainingScans = 3;
+  bool _isSleepSheetOpen = false;
+
+  void _checkAndShowSleepConfirmation(HealthProvider healthData) {
+    if (healthData.shouldShowSleepConfirmation && !_isSleepSheetOpen) {
+      _isSleepSheetOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            isDismissible: false,
+            enableDrag: false,
+            builder: (context) => _SleepConfirmationBottomSheet(healthData: healthData),
+          ).then((_) {
+            _isSleepSheetOpen = false;
+            if (healthData.shouldShowSleepConfirmation) {
+              healthData.dismissSleepConfirmation();
+            }
+          });
+        }
+      });
+    }
+  }
 
   Future<void> _updateRemainingScans() async {
     final count = await NutritionAnalysisLimiter.getTodayScanCount();
@@ -133,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed && mounted) {
       context.read<HealthProvider>().checkScreenTimeLimit();
+      context.read<HealthProvider>().checkSleepRecordOnAppOpen();
     }
   }
 
@@ -222,6 +248,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
     final auth = context.watch<AuthProvider>();
+    
+    // Kích hoạt BottomSheet xác nhận giờ ngủ khi người dùng thức dậy / mở app
+    _checkAndShowSleepConfirmation(healthData);
+
     // Kiểm tra và hiển thị cảnh báo thời gian sử dụng màn hình nếu vượt ngưỡng mà chưa hiện
     if (healthData.isScreenTimeExceeded && !healthData.hasShownScreenTimeAlert) {
       // Đánh dấu đã hiện ngay lập tức để tránh rebuild chồng chéo Dialog
@@ -248,9 +278,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       healthData.goal,
     );
 
-    final cleanUserId = auth.userEmail.isNotEmpty
-        ? auth.userEmail.replaceAll('@', '_').replaceAll('.', '_')
-        : 'shcare_tester_001';
+    final cleanUserId = auth.currentUser?.id ?? firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -348,13 +376,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   if (pet.state == 'Mệt mỏi' || pet.state == 'Khát') animState = 'tired';
                   if (pet.state == 'Năng động' || pet.state == 'Vui vẻ') animState = 'happy';
 
-                  final activeTasks = healthData.aiTasks.where((t) => !t.isCompleted && !t.isDismissed).toList();
+                  final activeTasks = healthData.aiTasks.where((t) => !t.isCompleted).toList();
                   final hasActiveAiTask = activeTasks.isNotEmpty;
                   final activeTask = hasActiveAiTask ? activeTasks.first : null;
 
                   final buttonText = activeTask != null
                       ? "Hoàn thành: ${activeTask.title} (+${activeTask.expReward} EXP)"
-                      : "Hoàn thành nhiệm vụ (+20 EXP)";
+                      : "Đã hoàn thành tất cả nhiệm vụ hôm nay! 🎉";
 
                   return Column(
                     children: [
@@ -437,12 +465,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                                 _PetDialogueCard(
                                   classType: pet.classType,
-                                  petMessage: pet.message.isNotEmpty ? pet.message : healthData.petMessage,
-                                  typedTask: _petTypingTriggered
-                                      ? (_isTyping
-                                            ? '${_typedTask.toString()}|'
-                                            : _typedTask.toString())
-                                      : '',
+                                  petMessage: !healthData.hasOnboardedBedtime
+                                      ? "Chào cậu! Để mình canh giấc ngủ cho cậu tốt nhất, bình thường cậu hay lên giường lúc mấy giờ nhỉ?"
+                                      : (pet.message.isNotEmpty ? pet.message : healthData.petMessage),
+                                  typedTask: !healthData.hasOnboardedBedtime
+                                      ? "Nhiệm vụ tân thủ: Thiết lập mục tiêu giấc ngủ"
+                                      : (_petTypingTriggered
+                                          ? (_isTyping
+                                              ? '${_typedTask.toString()}|'
+                                              : _typedTask.toString())
+                                          : ''),
+                                  showRedDot: !healthData.hasOnboardedBedtime,
                                 ),
                               ],
                             ),
@@ -451,16 +484,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       
                       // =========================================================
-                      // NÚT HOÀN THÀNH NHIỆM VỤ DỰA TRÊN GỢI Ý
+                      // NÚT HOÀN THÀNH NHIỆM VỤ DỰA TRÊN GỢI Ý AI
                       // =========================================================
-                      if (!healthData.allTasksCompleted)
+                      if (!healthData.hasOnboardedBedtime)
+                        _PetOnboardingBedtimePanel(healthData: healthData)
+                      else if (!healthData.allTasksCompleted && activeTask != null)
                         ElevatedButton.icon(
                           onPressed: () {
-                            if (activeTask != null) {
-                              healthData.completeAiTask(activeTask.id);
-                            } else {
-                              healthData.completeDailyTask();
-                            }
+                            healthData.completeAiTask(activeTask.id);
                           },
                           icon: const Icon(Icons.star, color: Colors.black87),
                           label: Text(
@@ -473,6 +504,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
+                          ),
+                        )
+                      else if (healthData.allTasksCompleted)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2740),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFD7B56D).withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.check_circle_rounded, color: Color(0xFFD7B56D), size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${healthData.completedTaskCount}/3 nhiệm vụ hoàn thành!',
+                                style: const TextStyle(
+                                  color: Color(0xFFD7B56D),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -506,28 +561,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppColors.radiusMd),
-        onTap: () async {
-          final canScan = await NutritionAnalysisLimiter.canScanToday();
-          if (!canScan) {
-            _showLimitReachedDialog();
-            return;
-          }
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => _AiNutritionDiaryBottomSheet(
+              healthData: healthData,
+              remainingScans: _remainingScans,
+              onScanPhoto: () async {
+                Navigator.pop(context); // Close bottom sheet
+                
+                final canScan = await NutritionAnalysisLimiter.canScanToday();
+                if (!canScan) {
+                  _showLimitReachedDialog();
+                  return;
+                }
 
-          final ImagePicker picker = ImagePicker();
-          final XFile? image = await picker.pickImage(
-            source: ImageSource.camera,
-            maxWidth: 1024,
-            maxHeight: 1024,
-            imageQuality: 85,
+                final ImagePicker picker = ImagePicker();
+                final XFile? image = await picker.pickImage(
+                  source: ImageSource.camera,
+                  maxWidth: 1024,
+                  maxHeight: 1024,
+                  imageQuality: 85,
+                );
+                if (image != null) {
+                  if (!context.mounted) return;
+                  await Navigator.of(context).pushNamed(
+                    '/nutrition_preview',
+                    arguments: image.path,
+                  );
+                  _updateRemainingScans();
+                }
+              },
+            ),
           );
-          if (image != null) {
-            if (!context.mounted) return;
-            await Navigator.of(context).pushNamed(
-              '/nutrition_preview',
-              arguments: image.path,
-            );
-            _updateRemainingScans();
-          }
         },
         child: Container(
           width: double.infinity,
@@ -874,11 +942,13 @@ class _PetDialogueCard extends StatelessWidget {
   final int classType;
   final String petMessage;
   final String typedTask;
+  final bool showRedDot;
 
   const _PetDialogueCard({
     required this.classType,
     required this.petMessage,
     required this.typedTask,
+    this.showRedDot = false,
   });
 
   static const Map<int, String> _classLabels = {
@@ -961,6 +1031,26 @@ class _PetDialogueCard extends StatelessWidget {
             right: 0,
             child: _PixelCorner(color: borderColor, flipX: true, flipY: true),
           ),
+          if (showRedDot)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.redAccent,
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    )
+                  ],
+                ),
+              ),
+            ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1370,5 +1460,700 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
         ],
       ),
     );
+  }
+}
+
+class _AiNutritionDiaryBottomSheet extends StatefulWidget {
+  final HealthProvider healthData;
+  final VoidCallback onScanPhoto;
+  final int remainingScans;
+
+  const _AiNutritionDiaryBottomSheet({
+    required this.healthData,
+    required this.onScanPhoto,
+    required this.remainingScans,
+  });
+
+  @override
+  State<_AiNutritionDiaryBottomSheet> createState() => _AiNutritionDiaryBottomSheetState();
+}
+
+class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomSheet> {
+  final TextEditingController _textController = TextEditingController();
+  bool _isLoading = false;
+  String? _successMessage;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF111826),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Color(0xFFD7B56D), size: 24),
+                const SizedBox(width: 10),
+                const Text(
+                  'Nhật ký Dinh dưỡng AI',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF162033),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD7B56D).withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    'Còn ${widget.remainingScans} lượt',
+                    style: const TextStyle(
+                      color: Color(0xFFD7B56D),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Gõ bữa ăn của bạn hoặc chụp ảnh để Gemini phân tích dinh dưỡng và so sánh với mục tiêu calo của bạn.',
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            if (_successMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B5E20).withValues(alpha: 0.15),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _successMessage!,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            TextField(
+              controller: _textController,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Sáng nay mình ăn 1 bánh mì ốp la và uống 1 ly đen đá...',
+                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                fillColor: const Color(0xFF162033),
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : widget.onScanPhoto,
+                      icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                      label: const Text('Chụp ảnh quét', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD7B56D),
+                        side: const BorderSide(color: Color(0xFFD7B56D), width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () async {
+                              final text = _textController.text.trim();
+                              if (text.isEmpty) return;
+
+                              setState(() {
+                                _isLoading = true;
+                                _successMessage = null;
+                              });
+
+                              final success = await widget.healthData.addMealRecord(text);
+
+                              setState(() {
+                                _isLoading = false;
+                              });
+
+                              if (success) {
+                                final lastMeal = widget.healthData.todayFoods.isNotEmpty
+                                    ? widget.healthData.todayFoods.last
+                                    : 'món ăn';
+                                setState(() {
+                                  _successMessage = 'Đã phân tích thành công và cộng dồn dinh dưỡng của "$lastMeal"!';
+                                  _textController.clear();
+                                });
+                                Future.delayed(const Duration(milliseconds: 1500), () {
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                  }
+                                });
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Vui lòng nhập đúng mô tả món ăn thực tế!'),
+                                      backgroundColor: Colors.red,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                            )
+                          : const Icon(Icons.auto_awesome, size: 18, color: Colors.black),
+                      label: Text(
+                        _isLoading ? 'Đang phân tích...' : 'Phân tích chữ',
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD7B56D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =========================================================
+// HỘP THOẠI XÁC NHẬN GIẤC NGỦ CHỐNG GIAN LẬN
+// =========================================================
+class _SleepConfirmationBottomSheet extends StatefulWidget {
+  final HealthProvider healthData;
+
+  const _SleepConfirmationBottomSheet({required this.healthData});
+
+  @override
+  State<_SleepConfirmationBottomSheet> createState() => _SleepConfirmationBottomSheetState();
+}
+
+class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomSheet> {
+  late DateTime _start;
+  late DateTime _wake;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _start = widget.healthData.sleepStartToConfirm ?? DateTime.now().subtract(const Duration(hours: 8));
+    _wake = widget.healthData.sleepWakeToConfirm ?? DateTime.now();
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _formatDuration(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes % 60;
+    return '${hours} tiếng ${minutes} phút';
+  }
+
+  Future<void> _selectStartTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_start),
+      helpText: 'Chọn giờ bắt đầu ngủ',
+    );
+    if (picked != null) {
+      setState(() {
+        final newStart = DateTime(_start.year, _start.month, _start.day, picked.hour, picked.minute);
+        _start = widget.healthData.normalizeSleepTimes(newStart, _wake);
+      });
+    }
+  }
+
+  Future<void> _selectWakeTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_wake),
+      helpText: 'Chọn giờ thức dậy',
+    );
+    if (picked != null) {
+      setState(() {
+        final newWake = DateTime(_wake.year, _wake.month, _wake.day, picked.hour, picked.minute);
+        _wake = newWake;
+        _start = widget.healthData.normalizeSleepTimes(_start, _wake);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = _wake.difference(_start);
+    final durationLabel = _formatDuration(duration);
+
+    return Container(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111826),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(color: const Color(0xFFD7B56D), width: 1.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Row(
+            children: [
+              Icon(Icons.nights_stay_rounded, color: Color(0xFFD7B56D), size: 24),
+              SizedBox(width: 8),
+              Text(
+                'Chào buổi sáng! 🌅',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFD7B56D),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (!_isEditing) ...[
+            Text(
+              'Đêm qua có vẻ bạn đã đặt điện thoại xuống lúc ${_formatTime(_start)} và thức dậy lúc ${_formatTime(_wake)}.',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.white,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bạn đã ngủ $durationLabel đúng không?',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white70,
+              ),
+            ),
+          ] else ...[
+            const Text(
+              'Chỉnh sửa thời gian giấc ngủ của bạn:',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white70,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectStartTime(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFD7B56D).withOpacity(0.5)),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white.withOpacity(0.05),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Bắt đầu ngủ',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTime(_start),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectWakeTime(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFD7B56D).withOpacity(0.5)),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white.withOpacity(0.05),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Thức dậy',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTime(_wake),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                'Tổng thời gian ngủ: $durationLabel',
+                style: const TextStyle(
+                  color: Color(0xFFD7B56D),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    if (!_isEditing) {
+                      setState(() {
+                        _isEditing = true;
+                      });
+                    } else {
+                      setState(() {
+                        _isEditing = false;
+                        _start = widget.healthData.sleepStartToConfirm ?? _start;
+                        _wake = widget.healthData.sleepWakeToConfirm ?? _wake;
+                      });
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFD7B56D),
+                    side: const BorderSide(color: Color(0xFFD7B56D)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(_isEditing ? 'Hủy' : 'Chỉnh sửa giờ'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await widget.healthData.confirmSleep(_start, _wake);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD7B56D),
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Chính xác, lưu lại',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: () {
+                widget.healthData.dismissSleepConfirmation();
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Bỏ qua lần này',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PetOnboardingBedtimePanel extends StatefulWidget {
+  final HealthProvider healthData;
+  const _PetOnboardingBedtimePanel({required this.healthData});
+
+  @override
+  State<_PetOnboardingBedtimePanel> createState() => _PetOnboardingBedtimePanelState();
+}
+
+class _PetOnboardingBedtimePanelState extends State<_PetOnboardingBedtimePanel> {
+  String _selectedTime = '22:30';
+  bool _isSaving = false;
+
+  final List<String> _times = [
+    '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00', '01:30', '02:00'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111826),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD7B56D), width: 1.5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF162033), Color(0xFF0C121E)],
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'QUEST TÂN THỦ • CHỌN GIỜ ĐI NGỦ',
+                style: TextStyle(
+                  color: Color(0xFFD7B56D),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _times.length,
+              itemBuilder: (context, index) {
+                final time = _times[index];
+                final isSelected = _selectedTime == time;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedTime = time;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFFD7B56D) : const Color(0xFF1F2937).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? Colors.white : const Color(0xFF374151),
+                        width: 1.5,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFFD7B56D).withOpacity(0.4),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      time,
+                      style: TextStyle(
+                        color: isSelected ? Colors.black87 : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _saveBedtime,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD7B56D),
+                disabledBackgroundColor: const Color(0xFFD7B56D).withOpacity(0.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.black87,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Xác nhận giờ đi ngủ 🎯',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveBedtime() async {
+    setState(() => _isSaving = true);
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+    if (user != null) {
+      final bedtimeParts = _selectedTime.split(':');
+      final bedHour = int.parse(bedtimeParts[0]);
+      final bedMin = int.parse(bedtimeParts[1]);
+      final wakeHour = (bedHour + 8) % 24;
+      final wakeTime = '${wakeHour.toString().padLeft(2, '0')}:${bedMin.toString().padLeft(2, '0')}';
+
+      final success = await auth.updateProfile(
+        name: user.name,
+        birthYear: user.birthYear ?? 1995,
+        gender: user.gender ?? 'Khác',
+        heightCm: user.heightCm ?? 170.0,
+        weightKg: user.weightKg ?? 65.0,
+        targetBedtime: _selectedTime,
+        targetWakeTime: wakeTime,
+      );
+
+      if (success && mounted) {
+        await widget.healthData.setHasOnboardedBedtime(true);
+        widget.healthData.completeDailyTaskOnboardingBedtime();
+        unawaited(widget.healthData.fetchBedtimeOnboardingInsight(_selectedTime, wakeTime));
+      }
+    }
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
   }
 }

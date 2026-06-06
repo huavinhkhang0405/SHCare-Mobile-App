@@ -11,6 +11,10 @@ class UserModel {
   final int? birthYear; // Năm sinh
   final int stepGoal; // Mục tiêu bước chân/ngày
   final double waterGoalLiters; // Mục tiêu uống nước (lít/ngày)
+  final bool isOnboarded; // Trạng thái hoàn thành/bỏ qua onboarding
+  final String targetBedtime; // Giờ ngủ mục tiêu (VD: "23:00")
+  final String targetWakeTime; // Giờ thức dậy mục tiêu (VD: "07:00")
+  final String activityLevel; // Tần suất tập thể dục (VD: "Vừa phải")
   final DateTime createdAt;
 
   UserModel({
@@ -24,6 +28,10 @@ class UserModel {
     this.birthYear,
     this.stepGoal = 10000,
     this.waterGoalLiters = 2.0,
+    this.isOnboarded = false,
+    this.targetBedtime = '23:00',
+    this.targetWakeTime = '07:00',
+    this.activityLevel = 'Vừa phải',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -40,6 +48,10 @@ class UserModel {
       birthYear: json['birth_year'] as int?,
       stepGoal: (json['step_goal'] as int?) ?? 10000,
       waterGoalLiters: (json['water_goal_liters'] as num?)?.toDouble() ?? 2.0,
+      isOnboarded: json['is_onboarded'] as bool? ?? (json['height_cm'] != null && json['weight_kg'] != null),
+      targetBedtime: json['target_bedtime'] as String? ?? '23:00',
+      targetWakeTime: json['target_wake_time'] as String? ?? '07:00',
+      activityLevel: json['activity_level'] as String? ?? 'Vừa phải',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -62,6 +74,10 @@ class UserModel {
       birthYear: data['birth_year'] as int?,
       stepGoal: (data['step_goal'] as int?) ?? 10000,
       waterGoalLiters: (data['water_goal_liters'] as num?)?.toDouble() ?? 2.0,
+      isOnboarded: data['is_onboarded'] as bool? ?? (data['height_cm'] != null && data['weight_kg'] != null),
+      targetBedtime: data['target_bedtime'] as String? ?? '23:00',
+      targetWakeTime: data['target_wake_time'] as String? ?? '07:00',
+      activityLevel: data['activity_level'] as String? ?? 'Vừa phải',
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
@@ -81,6 +97,10 @@ class UserModel {
       'birth_year': birthYear,
       'step_goal': stepGoal,
       'water_goal_liters': waterGoalLiters,
+      'is_onboarded': isOnboarded,
+      'target_bedtime': targetBedtime,
+      'target_wake_time': targetWakeTime,
+      'activity_level': activityLevel,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -97,6 +117,10 @@ class UserModel {
     int? birthYear,
     int? stepGoal,
     double? waterGoalLiters,
+    bool? isOnboarded,
+    String? targetBedtime,
+    String? targetWakeTime,
+    String? activityLevel,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -109,6 +133,10 @@ class UserModel {
       birthYear: birthYear ?? this.birthYear,
       stepGoal: stepGoal ?? this.stepGoal,
       waterGoalLiters: waterGoalLiters ?? this.waterGoalLiters,
+      isOnboarded: isOnboarded ?? this.isOnboarded,
+      targetBedtime: targetBedtime ?? this.targetBedtime,
+      targetWakeTime: targetWakeTime ?? this.targetWakeTime,
+      activityLevel: activityLevel ?? this.activityLevel,
       createdAt: createdAt,
     );
   }

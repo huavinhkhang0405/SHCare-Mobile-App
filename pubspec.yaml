@@ -51,6 +51,7 @@ dependencies:
   lottie: ^3.1.2
   cloud_firestore: ^6.5.0
   pedometer: ^4.2.0
+  screen_state: ^3.0.0
   permission_handler: ^12.0.3
   app_usage: ^4.1.0
   workmanager: ^0.9.0+3

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firebase/user_service.dart';
+import '../services/pet/pet_service.dart';
 
 /// Quản lý trạng thái xác thực người dùng sử dụng Firebase Auth.
 /// Hỗ trợ đăng nhập bằng email/password, Google, Facebook.
@@ -71,6 +72,8 @@ class AuthProvider extends ChangeNotifier {
           return false;
         }
         await loadCurrentUserModel();
+        // Đảm bảo pet collection tồn tại (backward compatibility cho user cũ chưa có pet)
+        await PetService().initializePet(credential.user!.uid);
       }
       _setLoading(false);
       return true;
@@ -123,6 +126,9 @@ class AuthProvider extends ChangeNotifier {
         );
         await _userService.saveUser(userModel);
         
+        // Tạo collection pet mặc định (level 1) cho tài khoản mới trên Firestore
+        await PetService().initializePet(credential.user!.uid);
+        
         // Đăng xuất ngay sau khi đăng ký để bắt buộc người dùng xác thực và đăng nhập lại
         await _authService.signOut();
       }
@@ -168,6 +174,8 @@ class AuthProvider extends ChangeNotifier {
         } else {
           _currentUserModel = exists;
         }
+        // Đảm bảo pet collection tồn tại cho user (tạo mới nếu chưa có)
+        await PetService().initializePet(credential.user!.uid);
         notifyListeners();
       }
       _setLoading(false);
@@ -208,6 +216,8 @@ class AuthProvider extends ChangeNotifier {
         } else {
           _currentUserModel = exists;
         }
+        // Đảm bảo pet collection tồn tại cho user (tạo mới nếu chưa có)
+        await PetService().initializePet(credential.user!.uid);
         notifyListeners();
       }
       _setLoading(false);
@@ -233,6 +243,7 @@ class AuthProvider extends ChangeNotifier {
     required String gender,
     required double heightCm,
     required double weightKg,
+    String activityLevel = 'Vừa phải',
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -252,10 +263,15 @@ class AuthProvider extends ChangeNotifier {
         gender: gender,
         heightCm: heightCm,
         weightKg: weightKg,
+        isOnboarded: true,
+        targetBedtime: _currentUserModel?.targetBedtime ?? '23:00',
+        targetWakeTime: _currentUserModel?.targetWakeTime ?? '07:00',
+        activityLevel: activityLevel,
         createdAt: _currentUserModel?.createdAt,
       );
 
       await _userService.saveUser(updatedModel);
+      await PetService().initializePet(firebaseUser.uid);
       _currentUserModel = updatedModel;
       _setLoading(false);
       notifyListeners();
@@ -267,13 +283,56 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Cập nhật thông tin cá nhân (Họ tên, Năm sinh, Giới tính, Chiều cao, Cân nặng)
+  /// Bỏ qua onboarding (lưu trạng thái đã bỏ qua lên Firestore)
+  Future<bool> skipOnboarding() async {
+    _setLoading(true);
+    _errorMessage = null;
+    try {
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      if (firebaseUser == null) {
+        _errorMessage = 'Không tìm thấy thông tin đăng nhập.';
+        _setLoading(false);
+        return false;
+      }
+
+      final updatedModel = UserModel(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? _currentUserModel?.email ?? '',
+        name: firebaseUser.displayName ?? _currentUserModel?.name ?? 'User',
+        birthYear: _currentUserModel?.birthYear,
+        gender: _currentUserModel?.gender,
+        heightCm: _currentUserModel?.heightCm,
+        weightKg: _currentUserModel?.weightKg,
+        isOnboarded: true,
+        targetBedtime: _currentUserModel?.targetBedtime ?? '23:00',
+        targetWakeTime: _currentUserModel?.targetWakeTime ?? '07:00',
+        activityLevel: _currentUserModel?.activityLevel ?? 'Vừa phải',
+        createdAt: _currentUserModel?.createdAt,
+      );
+
+      await _userService.saveUser(updatedModel);
+      await PetService().initializePet(firebaseUser.uid);
+      _currentUserModel = updatedModel;
+      _setLoading(false);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi bỏ qua onboarding: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Cập nhật thông tin cá nhân (Họ tên, Năm sinh, Giới tính, Chiều cao, Cân nặng, Cài đặt giấc ngủ, Tần suất tập luyện)
   Future<bool> updateProfile({
     required String name,
     required int birthYear,
     required String gender,
     required double heightCm,
     required double weightKg,
+    String? targetBedtime,
+    String? targetWakeTime,
+    String? activityLevel,
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -296,6 +355,10 @@ class AuthProvider extends ChangeNotifier {
         gender: gender,
         heightCm: heightCm,
         weightKg: weightKg,
+        isOnboarded: true,
+        targetBedtime: targetBedtime ?? _currentUserModel?.targetBedtime ?? '23:00',
+        targetWakeTime: targetWakeTime ?? _currentUserModel?.targetWakeTime ?? '07:00',
+        activityLevel: activityLevel ?? _currentUserModel?.activityLevel ?? 'Vừa phải',
         createdAt: _currentUserModel?.createdAt,
       );
 

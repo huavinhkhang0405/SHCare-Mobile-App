@@ -35,7 +35,7 @@ void callbackDispatcher() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload(); // Đọc dữ liệu mới nhất từ ổ cứng
 
-      final currentUser = prefs.getString('current_user_email') ?? 'shcare_tester_001';
+      final currentUser = prefs.getString('current_user_email') ?? '';
       final hasShownKey = '${currentUser}_has_shown_screentime_alert';
       final hasShownAlert = prefs.getBool(hasShownKey) ?? false;
 
@@ -160,7 +160,7 @@ Future<void> main() async {
           create: (_) => HealthProvider(),
           update: (_, auth, health) {
             if (health != null) {
-              health.updateUser(auth.userEmail);
+              health.updateUser(auth.currentUser);
             }
             return health!;
           },

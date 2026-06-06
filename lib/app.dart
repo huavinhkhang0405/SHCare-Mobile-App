@@ -71,11 +71,11 @@ class _RootScreenState extends State<RootScreen> {
       await auth.loadCurrentUserModel();
       
       if (mounted) {
-        // Kiểm tra xem đã hoàn thành onboarding chưa (chưa có chiều cao/cân nặng)
-        if (auth.currentUser?.heightCm == null || auth.currentUser?.weightKg == null) {
-          Navigator.of(context).pushReplacementNamed('/onboarding');
-        } else {
+        // Kiểm tra xem đã hoàn thành onboarding chưa (hoặc đã bỏ qua)
+        if (auth.currentUser?.isOnboarded == true) {
           Navigator.of(context).pushReplacementNamed('/main');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/onboarding');
         }
       }
     } else {

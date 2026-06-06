@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../providers/health_provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
@@ -337,6 +338,8 @@ class HomeSleepHighlightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final healthData = context.watch<HealthProvider>();
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -368,21 +371,21 @@ class HomeSleepHighlightCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Giấc ngủ đêm qua',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      '7h 45m · Chất lượng tốt',
-                      style: TextStyle(
+                      '${healthData.sleepDurationLabel} · Chất lượng ${healthData.sleepQuality}',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -391,7 +394,7 @@ class HomeSleepHighlightCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.textHint,
                 size: 22,
