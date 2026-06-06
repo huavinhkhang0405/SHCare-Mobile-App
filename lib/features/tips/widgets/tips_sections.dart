@@ -25,6 +25,129 @@ class TipItem {
   final Color iconColor;
 }
 
+const List<TipItem> allHealthTips = [
+  TipItem(
+    title: 'Bổ sung nước ngay',
+    description: 'Uống 1 ly nước 250ml giúp tăng cường trao đổi chất, cấp ẩm và duy trì sự tỉnh táo.',
+    duration: '2 phút',
+    category: 'Dinh dưỡng',
+    gifAssetPath: AppGifIcons.water,
+    icon: Icons.water_drop_rounded,
+    color: AppColors.waterTint,
+    iconColor: AppColors.waterIcon,
+  ),
+  TipItem(
+    title: 'Ăn thêm chất xơ',
+    description: 'Bổ sung rau xanh hoặc các loại hạt vào bữa chính giúp tiêu hóa tốt hơn và no lâu.',
+    duration: '5 phút',
+    category: 'Dinh dưỡng',
+    gifAssetPath: AppGifIcons.tips,
+    icon: Icons.restaurant_rounded,
+    color: AppColors.fireTint,
+    iconColor: AppColors.fireIcon,
+  ),
+  TipItem(
+    title: 'Bữa phụ chống mệt mỏi',
+    description: 'Sữa chua Hy Lạp và trái cây ít đường là lựa chọn nhẹ, dễ tiêu và ổn định năng lượng.',
+    duration: '5 phút',
+    category: 'Dinh dưỡng',
+    gifAssetPath: AppGifIcons.tips,
+    icon: Icons.restaurant_rounded,
+    color: AppColors.fireTint,
+    iconColor: AppColors.fireIcon,
+  ),
+  TipItem(
+    title: 'Đi bộ sau bữa ăn',
+    description: 'Đi bộ nhẹ nhàng từ 10-15 phút giúp làm giảm lượng đường trong máu và hỗ trợ tiêu hóa.',
+    duration: '15 phút',
+    category: 'Vận động',
+    gifAssetPath: AppGifIcons.walk,
+    icon: Icons.directions_walk_rounded,
+    color: AppColors.primarySurface,
+    iconColor: AppColors.primary,
+  ),
+  TipItem(
+    title: 'Giãn cơ cổ vai gáy',
+    description: 'Chu kỳ giãn cơ 5 phút giúp giảm mỏi cổ, vai gáy do ngồi làm việc sai tư thế trong thời gian dài.',
+    duration: '5 phút',
+    category: 'Vận động',
+    gifAssetPath: AppGifIcons.walk,
+    icon: Icons.accessibility_new_rounded,
+    color: AppColors.boltTint,
+    iconColor: AppColors.boltIcon,
+  ),
+  TipItem(
+    title: 'Tập Squat nhẹ nhàng',
+    description: 'Thực hiện 10-15 lượt Squat tại chỗ giúp kích hoạt các nhóm cơ lớn ở phần thân dưới.',
+    duration: '3 phút',
+    category: 'Vận động',
+    gifAssetPath: AppGifIcons.walk,
+    icon: Icons.fitness_center_rounded,
+    color: AppColors.primarySurface,
+    iconColor: AppColors.primary,
+  ),
+  TipItem(
+    title: 'Thở 4-7-8 thư giãn',
+    description: 'Hít vào 4 giây, giữ hơi 7 giây, thở ra 8 giây giúp hạ căng thẳng và điều hòa nhịp tim.',
+    duration: '3 phút',
+    category: 'Tinh thần',
+    gifAssetPath: AppGifIcons.meditate,
+    icon: Icons.self_improvement_rounded,
+    color: AppColors.sleepTint,
+    iconColor: AppColors.sleepIcon,
+  ),
+  TipItem(
+    title: 'Thiền chánh niệm ngắn',
+    description: 'Nhắm mắt và tập trung hoàn toàn vào luồng thở giúp cải thiện sự tập trung và giảm lo âu.',
+    duration: '5 phút',
+    category: 'Tinh thần',
+    gifAssetPath: AppGifIcons.meditate,
+    icon: Icons.self_improvement_rounded,
+    color: AppColors.sleepTint,
+    iconColor: AppColors.sleepIcon,
+  ),
+  TipItem(
+    title: 'Rời xa màn hình 5 phút',
+    description: 'Áp dụng quy tắc 20-20-20: nhìn xa 20 feet (6m) trong 20 giây để giảm mỏi mắt điều tiết.',
+    duration: '5 phút',
+    category: 'Tinh thần',
+    gifAssetPath: AppGifIcons.search,
+    icon: Icons.remove_red_eye_rounded,
+    color: AppColors.boltTint,
+    iconColor: AppColors.boltIcon,
+  ),
+  TipItem(
+    title: 'Tắt thiết bị trước khi ngủ',
+    description: 'Tắt điện thoại, máy tính 30 phút trước khi ngủ giúp não tiết melatonin dễ ngủ hơn.',
+    duration: '30 phút',
+    category: 'Ngủ',
+    gifAssetPath: AppGifIcons.sleep,
+    icon: Icons.nights_stay_rounded,
+    color: AppColors.sleepTint,
+    iconColor: AppColors.sleepIcon,
+  ),
+  TipItem(
+    title: 'Nghe tiếng ồn nâu (Brown Noise)',
+    description: 'Nghe âm thanh tần số thấp như tiếng mưa, tiếng sóng giúp não bộ tĩnh tâm và chìm sâu vào giấc ngủ.',
+    duration: '15 phút',
+    category: 'Ngủ',
+    gifAssetPath: AppGifIcons.sleep,
+    icon: Icons.music_note_rounded,
+    color: AppColors.sleepTint,
+    iconColor: AppColors.sleepIcon,
+  ),
+  TipItem(
+    title: 'Thư giãn cơ trước ngủ',
+    description: 'Căng rồi thả lỏng từng nhóm cơ từ ngón chân lên đầu giúp giải phóng căng thẳng vật lý tích tụ.',
+    duration: '10 phút',
+    category: 'Ngủ',
+    gifAssetPath: AppGifIcons.sleep,
+    icon: Icons.nightlight_round,
+    color: AppColors.sleepTint,
+    iconColor: AppColors.sleepIcon,
+  ),
+];
+
 List<TipItem> buildTipItems({
   required int steps,
   required int goal,
@@ -34,19 +157,17 @@ List<TipItem> buildTipItems({
 }) {
   final tips = <TipItem>[];
 
-  final stepProgress = goal > 0
-      ? (steps / goal).clamp(0.0, 1.0).toDouble()
-      : 0.0;
+  final stepProgress = goal > 0 ? (steps / goal).clamp(0.0, 1.0).toDouble() : 0.0;
   final remainingSteps = (goal - steps).clamp(0, goal).toInt();
   final walkMinutes = (remainingSteps / 350).ceil().clamp(8, 20).toInt();
 
+  // 1. Ưu tiên các gợi ý rule-based khẩn cấp
   if (waterPercentage < 80) {
     final remainingPercent = (100 - waterPercentage).clamp(0, 100);
     tips.add(
       TipItem(
-        title: 'Bổ sung nước ngay',
-        description:
-            'Bạn còn thiếu $remainingPercent% mục tiêu nước. Thêm 1 ly 250ml sẽ giúp tỉnh táo hơn.',
+        title: 'Bổ dung nước ngay',
+        description: 'Bạn còn thiếu $remainingPercent% mục tiêu nước. Thêm 1 ly 250ml sẽ giúp tỉnh táo hơn.',
         duration: '2 phút',
         category: 'Dinh dưỡng',
         gifAssetPath: AppGifIcons.water,
@@ -61,8 +182,7 @@ List<TipItem> buildTipItems({
     tips.add(
       TipItem(
         title: 'Đi bộ thêm $remainingSteps bước',
-        description:
-            'Bạn đã đạt ${(stepProgress * 100).round()}% mục tiêu. Đi bộ nhẹ sẽ giúp cải thiện chuyển hóa.',
+        description: 'Bạn đã đạt ${(stepProgress * 100).round()}% mục tiêu. Đi bộ nhẹ sẽ giúp cải thiện chuyển hóa.',
         duration: '$walkMinutes phút',
         category: 'Vận động',
         gifAssetPath: AppGifIcons.walk,
@@ -77,8 +197,7 @@ List<TipItem> buildTipItems({
     tips.add(
       TipItem(
         title: 'Thở 4-7-8 trong 3 phút',
-        description:
-            'Nhịp tim hiện tại $bpm bpm. Bài thở chậm giúp cơ thể hạ căng thẳng nhanh.',
+        description: 'Nhịp tim hiện tại $bpm bpm. Bài thở chậm giúp cơ thể hạ căng thẳng nhanh.',
         duration: '3 phút',
         category: 'Tinh thần',
         gifAssetPath: AppGifIcons.meditate,
@@ -89,39 +208,16 @@ List<TipItem> buildTipItems({
     );
   }
 
-  if (tips.length < 3) {
-    tips.add(
-      const TipItem(
-        title: 'Bữa phụ chống mệt mỏi',
-        description:
-            'Sữa chua Hy Lạp và trái cây ít đường là lựa chọn nhẹ, dễ tiêu và ổn định năng lượng.',
-        duration: '5 phút',
-        category: 'Dinh dưỡng',
-        gifAssetPath: AppGifIcons.tips,
-        icon: Icons.restaurant_rounded,
-        color: AppColors.fireTint,
-        iconColor: AppColors.fireIcon,
-      ),
-    );
+  // 2. Điền thêm từ kho dữ liệu tips cho đủ tối thiểu 3 tips (không trùng lặp tiêu đề)
+  for (final candidate in allHealthTips) {
+    if (tips.length >= 3) break;
+    final alreadyAdded = tips.any((t) => t.title == candidate.title);
+    if (!alreadyAdded) {
+      tips.add(candidate);
+    }
   }
 
-  if (tips.length < 3) {
-    tips.add(
-      const TipItem(
-        title: 'Giãn cơ cổ vai',
-        description:
-            'Một chu kỳ giãn cơ 5 phút giúp giảm mỏi vai gáy khi ngồi làm việc lâu.',
-        duration: '5 phút',
-        category: 'Vận động',
-        gifAssetPath: AppGifIcons.walk,
-        icon: Icons.accessibility_new_rounded,
-        color: AppColors.boltTint,
-        iconColor: AppColors.boltIcon,
-      ),
-    );
-  }
-
-  return tips.take(3).toList();
+  return tips;
 }
 
 class TipsHeader extends StatelessWidget {
@@ -154,33 +250,45 @@ class TipsHeader extends StatelessWidget {
 }
 
 class TipsSearchBar extends StatelessWidget {
-  const TipsSearchBar({super.key});
+  const TipsSearchBar({
+    super.key,
+    required this.onChanged,
+  });
+
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(AppColors.radiusMd),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: AppColors.softShadow,
       ),
-      child: const Row(
+      child: Row(
         children: [
-          GifIcon(
+          const GifIcon(
             assetPath: AppGifIcons.search,
             fallbackIcon: Icons.search_rounded,
             fallbackColor: AppColors.textHint,
             size: 20,
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Tìm mẹo về ăn uống, vận động, giấc ngủ...',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textHint,
+            child: TextField(
+              onChanged: onChanged,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Tìm mẹo về ăn uống, vận động, giấc ngủ...',
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textHint,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
@@ -191,7 +299,14 @@ class TipsSearchBar extends StatelessWidget {
 }
 
 class TipsCategoryChips extends StatelessWidget {
-  const TipsCategoryChips({super.key});
+  const TipsCategoryChips({
+    super.key,
+    required this.selectedCategory,
+    required this.onCategorySelected,
+  });
+
+  final String selectedCategory;
+  final ValueChanged<String> onCategorySelected;
 
   @override
   Widget build(BuildContext context) {
@@ -204,31 +319,35 @@ class TipsCategoryChips extends StatelessWidget {
         itemCount: categories.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final isSelected = index == 0;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary : AppColors.cardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.cardBorder,
+          final category = categories[index];
+          final isSelected = category == selectedCategory;
+          return GestureDetector(
+            onTap: () => onCategorySelected(category),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : AppColors.cardBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.cardBorder,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Text(
-              categories[index],
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
+              child: Text(
+                category,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
               ),
             ),
           );

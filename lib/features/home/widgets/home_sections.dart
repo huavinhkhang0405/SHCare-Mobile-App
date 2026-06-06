@@ -7,7 +7,10 @@ import '../providers/health_provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../utils/date_formatter.dart';
+import '../../../models/home_plan_item.dart';
+import '../../../models/recent_activity.dart';
 
 class HomeTopGreeting extends StatefulWidget {
   const HomeTopGreeting({
@@ -52,6 +55,12 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
     final textTheme = Theme.of(context).textTheme;
     final greeting = DateFormatter.greetingVi(_now);
     final currentTime = DateFormatter.formatHourMinute(_now);
+    
+    final auth = context.watch<AuthProvider>();
+    final healthData = context.watch<HealthProvider>();
+    final pendingPlans = healthData.planItems.where((p) => !p.isCompleted).length;
+    final pendingAiTasks = healthData.aiTasks.where((t) => !t.isCompleted).length;
+    final totalPending = pendingPlans + pendingAiTasks;
 
     return Row(
       children: [
@@ -68,7 +77,7 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Bây giờ là $currentTime, bạn có 3 mục tiêu sức khỏe cần hoàn thành hôm nay.',
+                'Bây giờ là $currentTime, bạn có $totalPending mục tiêu sức khỏe cần hoàn thành hôm nay.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -87,27 +96,36 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
               },
             );
           },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          child: (auth.currentUser?.avatarUrl != null && auth.currentUser!.avatarUrl!.trim().isNotEmpty)
+              ? UserAvatar(
+                  avatarUrl: auth.currentUser!.avatarUrl,
+                  size: 44,
+                  borderRadius: 14,
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+                )
+              : Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: GifIcon(
+                      assetPath: AppGifIcons.profile,
+                      fallbackIcon: Icons.person_rounded,
+                      fallbackColor: Colors.white,
+                      size: 24,
+                    ),
+                  ),
                 ),
-              ],
-            ),
-            child: const GifIcon(
-              assetPath: AppGifIcons.profile,
-              fallbackIcon: Icons.person_rounded,
-              fallbackColor: Colors.white,
-              size: 24,
-            ),
-          ),
         ),
       ],
     );
@@ -448,6 +466,28 @@ class HomePlanListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final healthData = context.watch<HealthProvider>();
+    final List<HomePlanItem> planItems = healthData.planItems;
+
+    if (planItems.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(AppColors.radiusMd),
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.softShadow,
+        ),
+        child: const Center(
+          child: Text(
+            'Không có lịch trình chăm sóc hôm nay.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -457,43 +497,48 @@ class HomePlanListCard extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: AppColors.softShadow,
       ),
-      child: const Column(
-        children: [
-          _HomePlanItem(
-            time: '08:00',
-            title: 'Uống nước đầu ngày',
-            subtitle: 'Hoàn thành',
-            gifAssetPath: AppGifIcons.check,
-            icon: Icons.check_circle_rounded,
-            iconColor: AppColors.primary,
-            isCompleted: true,
-          ),
-          Divider(height: 20),
-          _HomePlanItem(
-            time: '12:30',
-            title: 'Đi bộ 15 phút',
-            subtitle: 'Sắp đến giờ',
-            gifAssetPath: AppGifIcons.walk,
-            icon: Icons.directions_walk_rounded,
-            iconColor: AppColors.accent,
-          ),
-          Divider(height: 20),
-          _HomePlanItem(
-            time: '22:00',
-            title: 'Tập thở sâu 5 phút',
-            subtitle: 'Nhắc nhở',
-            gifAssetPath: AppGifIcons.meditate,
-            icon: Icons.self_improvement_rounded,
-            iconColor: AppColors.sleepIcon,
-          ),
-        ],
+      child: Column(
+        children: List.generate(planItems.length * 2 - 1, (index) {
+          if (index.isOdd) {
+            return const Divider(height: 20);
+          }
+          final planIndex = index ~/ 2;
+          final item = planItems[planIndex];
+          return _HomePlanItem(
+            id: item.id,
+            time: item.time,
+            title: item.title,
+            subtitle: item.subtitle,
+            gifAssetPath: item.isCompleted ? AppGifIcons.check : item.gifAssetPath,
+            icon: _mapIconNameToIconData(item.iconName),
+            iconColor: Color(int.parse(item.iconColorHex, radix: 16)),
+            isCompleted: item.isCompleted,
+            onToggle: () {
+              healthData.togglePlanItem(item.id);
+            },
+          );
+        }),
       ),
     );
+  }
+
+  IconData _mapIconNameToIconData(String name) {
+    switch (name) {
+      case 'check_circle_rounded':
+        return Icons.check_circle_rounded;
+      case 'directions_walk_rounded':
+        return Icons.directions_walk_rounded;
+      case 'self_improvement_rounded':
+        return Icons.self_improvement_rounded;
+      default:
+        return Icons.event_note_rounded;
+    }
   }
 }
 
 class _HomePlanItem extends StatelessWidget {
   const _HomePlanItem({
+    required this.id,
     required this.time,
     required this.title,
     required this.subtitle,
@@ -501,8 +546,10 @@ class _HomePlanItem extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     this.isCompleted = false,
+    required this.onToggle,
   });
 
+  final String id;
   final String time;
   final String title;
   final String subtitle;
@@ -510,67 +557,80 @@ class _HomePlanItem extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final bool isCompleted;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: GifIcon(
-            assetPath: gifAssetPath,
-            fallbackIcon: icon,
-            fallbackColor: iconColor,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  decoration: isCompleted ? TextDecoration.lineThrough : null,
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? AppColors.primary.withValues(alpha: 0.12)
+                    : iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isCompleted ? AppColors.primary : Colors.transparent,
+                  width: 1.5,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isCompleted ? AppColors.primary : AppColors.textHint,
-                  fontWeight: isCompleted ? FontWeight.w600 : FontWeight.w400,
-                ),
+              child: Icon(
+                isCompleted ? Icons.check_rounded : icon,
+                color: isCompleted ? AppColors.primary : iconColor,
+                size: 20,
               ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.scaffoldBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            time,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      decoration: isCompleted ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isCompleted ? AppColors.primary : AppColors.textHint,
+                      fontWeight: isCompleted ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -580,6 +640,36 @@ class HomeRecentActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final healthData = context.watch<HealthProvider>();
+    final List<RecentActivity> activities = healthData.recentActivities;
+
+    if (activities.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(AppColors.radiusMd),
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.softShadow,
+        ),
+        child: const Column(
+          children: [
+            Icon(Icons.history_rounded, color: AppColors.textHint, size: 24),
+            SizedBox(height: 8),
+            Text(
+              'Chưa có hoạt động gần đây.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -589,26 +679,44 @@ class HomeRecentActivityCard extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: AppColors.softShadow,
       ),
-      child: const Column(
-        children: [
-          _HomeActivityTile(
-            gifAssetPath: AppGifIcons.route,
-            icon: Icons.route_rounded,
-            title: 'Bạn vừa đi bộ',
-            subtitle: '2.1 km trong 28 phút',
-            trailing: '+132 kcal',
-          ),
-          SizedBox(height: 12),
-          _HomeActivityTile(
-            gifAssetPath: AppGifIcons.water,
-            icon: Icons.water_drop_rounded,
-            title: 'Đã cập nhật nước uống',
-            subtitle: 'Thêm 250 ml vào mục tiêu ngày',
-            trailing: '14:10',
-          ),
-        ],
+      child: Column(
+        children: List.generate(activities.length * 2 - 1, (index) {
+          if (index.isOdd) {
+            return const SizedBox(height: 12);
+          }
+          final actIndex = index ~/ 2;
+          final act = activities[actIndex];
+          return _HomeActivityTile(
+            gifAssetPath: act.gifAssetPath,
+            icon: _mapIconNameToIconData(act.iconName),
+            title: act.title,
+            subtitle: act.subtitle,
+            trailing: act.trailing,
+          );
+        }),
       ),
     );
+  }
+
+  IconData _mapIconNameToIconData(String name) {
+    switch (name) {
+      case 'check_circle_rounded':
+        return Icons.check_circle_rounded;
+      case 'directions_walk_rounded':
+        return Icons.directions_walk_rounded;
+      case 'self_improvement_rounded':
+        return Icons.self_improvement_rounded;
+      case 'water_drop_rounded':
+        return Icons.water_drop_rounded;
+      case 'local_fire_department_rounded':
+        return Icons.local_fire_department_rounded;
+      case 'nightlight_round':
+        return Icons.nightlight_round;
+      case 'star_rounded':
+        return Icons.star_rounded;
+      default:
+        return Icons.event_note_rounded;
+    }
   }
 }
 
@@ -718,20 +826,11 @@ class ProfileActionsBottomSheet extends StatelessWidget {
           // User avatar & info
           Row(
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.person_rounded,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
+              UserAvatar(
+                avatarUrl: auth.currentUser?.avatarUrl,
+                size: 60,
+                borderRadius: 30,
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
               ),
               const SizedBox(width: 16),
               Expanded(

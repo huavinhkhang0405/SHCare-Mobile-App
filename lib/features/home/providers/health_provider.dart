@@ -15,6 +15,9 @@ import '../../../models/nutrition_analysis_result.dart';
 import '../../../services/sensor/health_sensor_service.dart';
 import '../../../services/screen_time_service.dart';
 import '../../../models/user_model.dart';
+import '../../../models/home_plan_item.dart';
+import '../../../models/recent_activity.dart';
+import '../../../utils/date_formatter.dart';
 
 class HealthProvider extends ChangeNotifier {
   UserModel? _currentUser;
@@ -23,6 +26,136 @@ class HealthProvider extends ChangeNotifier {
   String _currentUserId = '';
   int _lastDeviceSteps = -1;
   bool _isScreenTimeExceeded = false;
+
+  // Dữ liệu Lịch trình chăm sóc và Hoạt động gần đây
+  List<HomePlanItem> _planItems = [];
+  List<RecentActivity> _recentActivities = [];
+
+  List<HomePlanItem> get planItems => List.unmodifiable(_planItems);
+  List<RecentActivity> get recentActivities => List.unmodifiable(_recentActivities);
+
+  static final List<HomePlanItem> _defaultPlanItems = [
+    HomePlanItem(
+      id: 'plan_water_morning',
+      time: '08:00',
+      title: 'Uống nước đầu ngày',
+      subtitle: 'Nhắc nhở',
+      gifAssetPath: 'assets/icons/gif/check.gif',
+      iconName: 'check_circle_rounded',
+      iconColorHex: 'FF2ECC71',
+      isCompleted: false,
+    ),
+    HomePlanItem(
+      id: 'plan_walk_afternoon',
+      time: '12:30',
+      title: 'Đi bộ 15 phút',
+      subtitle: 'Sắp đến giờ',
+      gifAssetPath: 'assets/icons/gif/walk.gif',
+      iconName: 'directions_walk_rounded',
+      iconColorHex: 'FFE67E22',
+      isCompleted: false,
+    ),
+    HomePlanItem(
+      id: 'plan_breath_evening',
+      time: '22:00',
+      title: 'Tập thở sâu 5 phút',
+      subtitle: 'Nhắc nhở',
+      gifAssetPath: 'assets/icons/gif/meditate.gif',
+      iconName: 'self_improvement_rounded',
+      iconColorHex: 'FF9B59B6',
+      isCompleted: false,
+    ),
+  ];
+
+  Future<void> _savePlanItems() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String encoded = json.encode(_planItems.map((p) => p.toJson()).toList());
+      await prefs.setString(_getKey('plan_items_json'), encoded);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu plan items: $e');
+    }
+  }
+
+  Future<void> _saveRecentActivities() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String encoded = json.encode(_recentActivities.map((a) => a.toJson()).toList());
+      await prefs.setString(_getKey('recent_activities_json'), encoded);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu recent activities: $e');
+    }
+  }
+
+  void addRecentActivity({
+    required String title,
+    required String subtitle,
+    required String trailing,
+    required String gifAssetPath,
+    required String iconName,
+  }) {
+    final activity = RecentActivity(
+      id: 'activity_${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(1000)}',
+      title: title,
+      subtitle: subtitle,
+      trailing: trailing,
+      gifAssetPath: gifAssetPath,
+      iconName: iconName,
+      timestamp: DateTime.now(),
+    );
+    _recentActivities.insert(0, activity);
+    if (_recentActivities.length > 10) {
+      _recentActivities = _recentActivities.sublist(0, 10);
+    }
+    _saveRecentActivities();
+    notifyListeners();
+  }
+
+  void togglePlanItem(String planId) {
+    final index = _planItems.indexWhere((p) => p.id == planId);
+    if (index == -1) return;
+
+    final item = _planItems[index];
+    final newCompletedState = !item.isCompleted;
+    final newSubtitle = newCompletedState ? 'Hoàn thành' : 'Nhắc nhở';
+
+    _planItems[index] = item.copyWith(
+      isCompleted: newCompletedState,
+      subtitle: newSubtitle,
+    );
+
+    _savePlanItems();
+
+    if (newCompletedState) {
+      _currentExp += 10;
+      var didLevelUp = false;
+      if (_currentExp >= _expToNextLevel) {
+        _level++;
+        _currentExp -= _expToNextLevel;
+        didLevelUp = true;
+      }
+      _petTask = 'Hoàn thành "${item.title}"! +10 EXP';
+      _triggerPetEnvironmentEffect(didLevelUp: didLevelUp);
+      _petService.gainExperience(_currentUserId, 10);
+
+      addRecentActivity(
+        title: 'Hoàn thành lịch trình',
+        subtitle: 'Đã thực hiện: ${item.title}',
+        trailing: item.time,
+        gifAssetPath: item.gifAssetPath,
+        iconName: item.iconName,
+      );
+    } else {
+      addRecentActivity(
+        title: 'Hủy hoàn thành',
+        subtitle: 'Đã hủy: ${item.title}',
+        trailing: item.time,
+        gifAssetPath: item.gifAssetPath,
+        iconName: item.iconName,
+      );
+    }
+    notifyListeners();
+  }
 
   bool get isScreenTimeExceeded => _isScreenTimeExceeded;
 
@@ -729,6 +862,14 @@ class HealthProvider extends ChangeNotifier {
     _simulateEnergyAndMood();
     _updateHealthScore();
     _refreshPetInsights();
+    
+    addRecentActivity(
+      title: 'Đã cập nhật nước uống',
+      subtitle: 'Thêm 250 ml vào mục tiêu ngày',
+      trailing: DateFormatter.formatHourMinute(DateTime.now()),
+      gifAssetPath: 'assets/icons/gif/water.gif',
+      iconName: 'water_drop_rounded',
+    );
     notifyListeners();
   }
 
@@ -742,6 +883,14 @@ class HealthProvider extends ChangeNotifier {
     _simulateEnergyAndMood();
     _updateHealthScore();
     _refreshPetInsights();
+    
+    addRecentActivity(
+      title: 'Đã bớt nước uống',
+      subtitle: 'Giảm 250 ml mục tiêu ngày',
+      trailing: DateFormatter.formatHourMinute(DateTime.now()),
+      gifAssetPath: 'assets/icons/gif/water.gif',
+      iconName: 'water_drop_rounded',
+    );
     notifyListeners();
   }
 
@@ -933,6 +1082,14 @@ class HealthProvider extends ChangeNotifier {
     // Cộng EXP cho pet trên Firestore database
     _petService.gainExperience(_currentUserId, expGained);
     
+    addRecentActivity(
+      title: 'Nhiệm vụ AI hoàn thành',
+      subtitle: task.title,
+      trailing: DateFormatter.formatHourMinute(DateTime.now()),
+      gifAssetPath: 'assets/icons/gif/bolt.gif',
+      iconName: 'star_rounded',
+    );
+
     _saveAiTasks();
     notifyListeners();
   }
@@ -1070,6 +1227,23 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = prefs.getInt(_getKey('consumed_carbs')) ?? 0;
         _consumedFat = prefs.getInt(_getKey('consumed_fat')) ?? 0;
         _todayFoods = prefs.getStringList(_getKey('today_foods')) ?? [];
+
+        // Tải Plan Items và Recent Activities
+        final String? planItemsStr = prefs.getString(_getKey('plan_items_json'));
+        if (planItemsStr != null && planItemsStr.isNotEmpty) {
+          final List<dynamic> decoded = json.decode(planItemsStr);
+          _planItems = decoded.map((item) => HomePlanItem.fromJson(item as Map<String, dynamic>)).toList();
+        } else {
+          _planItems = List.from(_defaultPlanItems);
+        }
+
+        final String? recentActStr = prefs.getString(_getKey('recent_activities_json'));
+        if (recentActStr != null && recentActStr.isNotEmpty) {
+          final List<dynamic> decoded = json.decode(recentActStr);
+          _recentActivities = decoded.map((item) => RecentActivity.fromJson(item as Map<String, dynamic>)).toList();
+        } else {
+          _recentActivities = [];
+        }
       } else {
         // Reset cho ngày mới
         _isDailyTaskCompleted = false;
@@ -1085,6 +1259,8 @@ class HealthProvider extends ChangeNotifier {
         _consumedFat = 0;
         _todayFoods = [];
         _onboardingBedtimeInsight = null;
+        _planItems = List.from(_defaultPlanItems);
+        _recentActivities = [];
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
         await prefs.setBool(_getKey('has_shown_screentime_alert'), false);
@@ -1097,6 +1273,8 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_carbs'), 0);
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
+        await prefs.setString(_getKey('plan_items_json'), json.encode(_planItems.map((p) => p.toJson()).toList()));
+        await prefs.setString(_getKey('recent_activities_json'), '[]');
       }
       notifyListeners();
 
@@ -1130,6 +1308,8 @@ class HealthProvider extends ChangeNotifier {
         _consumedFat = 0;
         _todayFoods = [];
         _onboardingBedtimeInsight = null;
+        _planItems = List.from(_defaultPlanItems);
+        _recentActivities = [];
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
         await prefs.setBool(_getKey('has_shown_screentime_alert'), false);
@@ -1142,6 +1322,8 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_carbs'), 0);
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
+        await prefs.setString(_getKey('plan_items_json'), json.encode(_planItems.map((p) => p.toJson()).toList()));
+        await prefs.setString(_getKey('recent_activities_json'), '[]');
         notifyListeners();
 
         // Tự động tạo nhiệm vụ AI cho ngày mới
@@ -1172,6 +1354,15 @@ class HealthProvider extends ChangeNotifier {
 
         _updateHealthScore();
         await _saveNutritionData();
+        
+        addRecentActivity(
+          title: 'Ghi nhận bữa ăn AI',
+          subtitle: '${result.foodItems.join(", ")} (+${result.totalCalories} kcal)',
+          trailing: DateFormatter.formatHourMinute(DateTime.now()),
+          gifAssetPath: 'assets/icons/gif/fire.gif',
+          iconName: 'local_fire_department_rounded',
+        );
+
         notifyListeners();
         return true;
       }
@@ -1391,6 +1582,15 @@ class HealthProvider extends ChangeNotifier {
     _shouldShowSleepConfirmation = false;
     _sleepStartToConfirm = null;
     _sleepWakeToConfirm = null;
+    
+    addRecentActivity(
+      title: 'Đã xác nhận giấc ngủ',
+      subtitle: 'Ngủ: ${sleepDurationLabel} · Chất lượng ${sleepQuality}',
+      trailing: DateFormatter.formatHourMinute(DateTime.now()),
+      gifAssetPath: 'assets/icons/gif/sleep.gif',
+      iconName: 'nightlight_round',
+    );
+
     _isLoadingAI = true;
     _petMessage = 'Đang phân tích dữ liệu giấc ngủ của bạn...';
     notifyListeners();
