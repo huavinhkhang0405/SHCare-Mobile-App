@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -13,33 +12,78 @@ import '../../models/nutrition_result.dart';
 /// Kỹ thuật cốt lõi:
 /// - responseMimeType: 'application/json' → ép AI chỉ trả JSON thuần
 /// - Prompt Engineering với rule-based constraints
-/// - Fallback logic khi mất mạng hoặc API lỗi
+/// - Cơ chế xoay tua API keys (GEMINI_API_KEYS) và tự động thử lại khi lỗi
+/// - Fallback logic khi mất mạng hoặc tất cả API keys đều lỗi
 class GeminiService {
-  late final GenerativeModel _model;
-  final bool _isConfigured;
+  List<String> _apiKeys = [];
+  int _currentKeyIndex = 0;
+  bool _isConfigured = false;
 
-  GeminiService()
-      : _isConfigured = (dotenv.env['GEMINI_API_KEY'] ?? '').isNotEmpty {
-    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  GeminiService() {
+    _initializeKeys();
+  }
 
-    if (apiKey.isEmpty) {
-      debugPrint('🚨 [GeminiService] Chưa cấu hình GEMINI_API_KEY trong file .env');
-      debugPrint('👉 Thêm dòng GEMINI_API_KEY=your_key_here vào file .env');
+  void _initializeKeys() {
+    final rawKeys = dotenv.env['GEMINI_API_KEYS'] ?? dotenv.env['GEMINI_API_KEY'] ?? '';
+    if (rawKeys.isNotEmpty) {
+      _apiKeys = rawKeys.split(',').map((k) => k.trim()).where((k) => k.isNotEmpty).toList();
     }
-
-    // Khởi tạo mô hình AI
-    _model = GenerativeModel(
-      model: 'gemini-2.5-flash', // Bản Flash cho tốc độ tính bằng mili-giây
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        responseMimeType: 'application/json', // Ép buộc AI chỉ trả về JSON hợp lệ
-        temperature: 0.7, // Độ sáng tạo vừa phải
-      ),
-    );
+    _isConfigured = _apiKeys.isNotEmpty;
+    if (!_isConfigured) {
+      debugPrint('🚨 [GeminiService] Chưa cấu hình API key trong file .env');
+    } else {
+      debugPrint('✅ [GeminiService] Đã nạp ${_apiKeys.length} API key để xoay tua.');
+    }
   }
 
   /// Kiểm tra xem service đã được cấu hình API key chưa
   bool get isConfigured => _isConfigured;
+
+  String get _currentKey => _apiKeys.isEmpty ? '' : _apiKeys[_currentKeyIndex];
+
+  void _rotateKey() {
+    if (_apiKeys.length > 1) {
+      _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
+      debugPrint('🔄 [GeminiService] Xoay tua sang API key index: $_currentKeyIndex');
+    }
+  }
+
+  GenerativeModel _getModel({GenerationConfig? config}) {
+    return GenerativeModel(
+      model: 'gemini-2.5-flash',
+      apiKey: _currentKey,
+      generationConfig: config,
+    );
+  }
+
+  Future<T> _executeWithRotation<T>(
+    Future<T> Function(GenerativeModel model) requestBuilder, {
+    GenerationConfig? config,
+  }) async {
+    if (!_isConfigured) {
+      throw Exception('Chưa cấu hình API key trong file .env.');
+    }
+
+    int attempts = 0;
+    final maxAttempts = _apiKeys.length;
+
+    while (attempts < maxAttempts) {
+      try {
+        final model = _getModel(config: config);
+        return await requestBuilder(model);
+      } catch (e) {
+        attempts++;
+        debugPrint('🚨 [GeminiService] Lỗi khi gọi API với key index $_currentKeyIndex (Lần thử $attempts/$maxAttempts): $e');
+        
+        if (attempts < maxAttempts) {
+          _rotateKey();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    throw Exception('Đã thử tất cả các API key nhưng đều thất bại.');
+  }
 
   /// Phân tích hình ảnh món ăn hoặc đồ uống sử dụng mô hình đa phương thức (Multimodal).
   Future<NutritionAnalysisResult> analyzeNutritionImage(
@@ -47,14 +91,14 @@ class GeminiService {
     String? userDescription,
   }) async {
     if (!_isConfigured) {
-      throw Exception('Chưa cấu hình GEMINI_API_KEY. Vui lòng kiểm tra tệp .env.');
+      throw Exception('Chưa cấu hình API key. Vui lòng kiểm tra tệp .env.');
     }
 
     final prompt = '''
 Bạn là một chuyên gia dinh dưỡng ảo trong ứng dụng SHCare. Hãy phân tích hình ảnh món ăn hoặc đồ uống được cung cấp (kèm theo mô tả bổ sung của người dùng nếu có dưới đây) để ước tính lượng calo, các chất dinh dưỡng đa lượng (Carbs, Protein, Fat) và lượng nước ước tính chứa trong phần thực phẩm đó.
 
 [Mô tả bổ sung của người dùng (nếu có)]
-\${userDescription ?? "Không có mô tả thêm từ người dùng."}
+${userDescription ?? "Không có mô tả thêm từ người dùng."}
 
 [Quy tắc phân tích]
 1. Hãy nhận diện chính xác nhất loại món ăn hoặc đồ uống trong ảnh. BẮT BUỘC ƯU TIÊN TUYỆT ĐỐI thông tin từ "Mô tả bổ sung của người dùng" để xác định thành phần, lượng đường, topping, nguyên liệu hoặc kích cỡ phần ăn, vì đây là thông tin chính xác nhất về thực phẩm họ đang ăn/uống mà mắt thường không nhìn thấy hết qua ảnh.
@@ -86,8 +130,17 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
         ])
       ];
 
-      final response = await _model.generateContent(content);
-      final text = response.text;
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent(content);
+          return response.text;
+        },
+        config: GenerationConfig(
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        ),
+      );
+
       if (text == null || text.isEmpty) {
         throw Exception('AI không thể nhận diện được hình ảnh thực phẩm.');
       }
@@ -96,7 +149,7 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
       final Map<String, dynamic> jsonResult = json.decode(text);
       return NutritionAnalysisResult.fromJson(jsonResult);
     } catch (e) {
-      debugPrint('🚨 [GeminiService] Lỗi phân tích ảnh thực phẩm: \$e');
+      debugPrint('🚨 [GeminiService] Lỗi phân tích ảnh thực phẩm: $e');
       rethrow;
     }
   }
@@ -182,11 +235,17 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
 ''';
 
     try {
-      // ─── 2. Gửi request lên AI ────────────────────────────
-      final content = [Content.text(prompt)];
-      final response = await _model.generateContent(content);
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent([Content.text(prompt)]);
+          return response.text;
+        },
+        config: GenerationConfig(
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        ),
+      );
 
-      final text = response.text;
       if (text == null || text.isEmpty) {
         throw Exception('AI trả về dữ liệu rỗng');
       }
@@ -228,8 +287,17 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
     ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final text = response.text;
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent([Content.text(prompt)]);
+          return response.text;
+        },
+        config: GenerationConfig(
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        ),
+      );
+
       if (text == null || text.isEmpty) return null;
 
       // Parse JSON thành Map
@@ -266,15 +334,16 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
 ''';
 
     try {
-      final modelForText = GenerativeModel(
-        model: 'gemini-2.5-flash',
-        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
-        generationConfig: GenerationConfig(
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent([Content.text(prompt)]);
+          return response.text;
+        },
+        config: GenerationConfig(
           temperature: 0.7,
         ),
       );
-      final response = await modelForText.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ?? 'Chúc bạn một ngày mới tràn đầy năng lượng!';
+      return text?.trim() ?? 'Chúc bạn một ngày mới tràn đầy năng lượng!';
     } catch (e) {
       debugPrint('🚨 [GeminiService] Lỗi getSleepInsight: $e');
       return 'Bạn đã ngủ ${durationHours.toStringAsFixed(1)} tiếng. Hãy cố gắng duy trì nhịp ngủ đều đặn để phục hồi cơ thể nhé!';
@@ -297,15 +366,16 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
 ''';
 
     try {
-      final modelForText = GenerativeModel(
-        model: 'gemini-2.5-flash',
-        apiKey: dotenv.env['GEMINI_API_KEY'] ?? '',
-        generationConfig: GenerationConfig(
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent([Content.text(prompt)]);
+          return response.text;
+        },
+        config: GenerationConfig(
           temperature: 0.7,
         ),
       );
-      final response = await modelForText.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ?? 'Tuyệt vời! Mình sẽ canh giấc ngủ cho cậu thật tốt!';
+      return text?.trim() ?? 'Tuyệt vời! Mình sẽ canh giấc ngủ cho cậu thật tốt!';
     } catch (e) {
       debugPrint('🚨 [GeminiService] Lỗi getBedtimeOnboardingInsight: $e');
       return 'Tuyệt vời! Mình sẽ giúp bạn theo dõi giấc ngủ lúc $targetBedtime mỗi ngày nhé!';
