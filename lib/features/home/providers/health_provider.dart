@@ -1227,6 +1227,10 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = prefs.getInt(_getKey('consumed_carbs')) ?? 0;
         _consumedFat = prefs.getInt(_getKey('consumed_fat')) ?? 0;
         _todayFoods = prefs.getStringList(_getKey('today_foods')) ?? [];
+        
+        // Tải thông tin giấc ngủ đã lưu
+        _sleepMinutes = prefs.getInt(_getKey('sleep_minutes')) ?? 465;
+        _deepSleepMinutes = prefs.getInt(_getKey('deep_sleep_minutes')) ?? 198;
 
         // Tải Plan Items và Recent Activities
         final String? planItemsStr = prefs.getString(_getKey('plan_items_json'));
@@ -1258,6 +1262,8 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = 0;
         _consumedFat = 0;
         _todayFoods = [];
+        _sleepMinutes = 465;
+        _deepSleepMinutes = 198;
         _onboardingBedtimeInsight = null;
         _planItems = List.from(_defaultPlanItems);
         _recentActivities = [];
@@ -1273,6 +1279,8 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_carbs'), 0);
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
+        await prefs.setInt(_getKey('sleep_minutes'), 465);
+        await prefs.setInt(_getKey('deep_sleep_minutes'), 198);
         await prefs.setString(_getKey('plan_items_json'), json.encode(_planItems.map((p) => p.toJson()).toList()));
         await prefs.setString(_getKey('recent_activities_json'), '[]');
       }
