@@ -15,6 +15,9 @@ class UserModel {
   final String targetBedtime; // Giờ ngủ mục tiêu (VD: "23:00")
   final String targetWakeTime; // Giờ thức dậy mục tiêu (VD: "07:00")
   final String activityLevel; // Tần suất tập thể dục (VD: "Vừa phải")
+  final String friendCode; // Mã kết bạn duy nhất
+  final List<String> friends; // Danh sách UIDs bạn bè
+  final String? facebookId; // ID Facebook nếu đăng nhập qua Facebook
   final DateTime createdAt;
 
   UserModel({
@@ -32,6 +35,9 @@ class UserModel {
     this.targetBedtime = '23:00',
     this.targetWakeTime = '07:00',
     this.activityLevel = 'Vừa phải',
+    this.friendCode = '',
+    this.friends = const [],
+    this.facebookId,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -52,6 +58,12 @@ class UserModel {
       targetBedtime: json['target_bedtime'] as String? ?? '23:00',
       targetWakeTime: json['target_wake_time'] as String? ?? '07:00',
       activityLevel: json['activity_level'] as String? ?? 'Vừa phải',
+      friendCode: (json['friend_code'] as String?) ?? '',
+      friends: (json['friends'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      facebookId: json['facebook_id'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -78,6 +90,12 @@ class UserModel {
       targetBedtime: data['target_bedtime'] as String? ?? '23:00',
       targetWakeTime: data['target_wake_time'] as String? ?? '07:00',
       activityLevel: data['activity_level'] as String? ?? 'Vừa phải',
+      friendCode: data['friend_code'] as String? ?? '',
+      friends: (data['friends'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      facebookId: data['facebook_id'] as String?,
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
@@ -101,6 +119,9 @@ class UserModel {
       'target_bedtime': targetBedtime,
       'target_wake_time': targetWakeTime,
       'activity_level': activityLevel,
+      'friend_code': friendCode,
+      'friends': friends,
+      'facebook_id': facebookId,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -121,6 +142,9 @@ class UserModel {
     String? targetBedtime,
     String? targetWakeTime,
     String? activityLevel,
+    String? friendCode,
+    List<String>? friends,
+    String? facebookId,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -137,6 +161,9 @@ class UserModel {
       targetBedtime: targetBedtime ?? this.targetBedtime,
       targetWakeTime: targetWakeTime ?? this.targetWakeTime,
       activityLevel: activityLevel ?? this.activityLevel,
+      friendCode: friendCode ?? this.friendCode,
+      friends: friends ?? this.friends,
+      facebookId: facebookId ?? this.facebookId,
       createdAt: createdAt,
     );
   }

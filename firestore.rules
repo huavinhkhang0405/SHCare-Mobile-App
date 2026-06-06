@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User documents
+    match /users/{userId} {
+      // Allow read for authenticated users to search/view other users (friend search and leaderboard names)
+      allow read: if request.auth != null;
+      // Allow the user themselves to write their data
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allow authenticated users to update the friends list array during friending logic
+      allow update: if request.auth != null;
+    }
+    
+    // Pet documents inside user subcollections
+    match /users/{userId}/pets/{petId} {
+      // Anyone logged in can read a pet for leaderboards
+      allow read: if request.auth != null;
+      // Only the pet owner can create, update, or delete their pet
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Health diaries
+    match /users/{userId}/diaries/{diaryId} {
+      // Only the user themselves can access or modify their private health diaries
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Realtime Poke messages
+    match /users/{userId}/pokes/{pokeId} {
+      // Only allow creation of poke notifications if the sender matches the authenticated user ID
+      allow create: if request.auth != null && request.resource.data.sender_id == request.auth.uid;
+      // Only the recipient user can read and delete their own incoming poke notifications
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

@@ -22,6 +22,9 @@ class PetModel {
   final String currentTask;
   final bool isTaskCompleted;
 
+  final String currentTitle; // Danh hiệu Gen Z hiện tại
+  final String ownerName; // Tên chủ Pet (để flex trên Leaderboard)
+
   // ─── Metadata ─────────────────────────────────────────────
   final DateTime lastInteraction;
 
@@ -37,6 +40,8 @@ class PetModel {
     this.message = 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
     this.currentTask = 'Đi bộ 500 bước để khởi động ngày mới.',
     this.isTaskCompleted = false,
+    this.currentTitle = 'Chúa tể ôm giường',
+    this.ownerName = 'Bạn của Pet',
     DateTime? lastInteraction,
   }) : lastInteraction = lastInteraction ?? DateTime.now(),
        classType = classType ?? getDefaultClass(userId);
@@ -73,6 +78,8 @@ class PetModel {
       message: (json['message'] as String?) ?? '',
       currentTask: (json['current_task'] as String?) ?? '',
       isTaskCompleted: (json['is_task_completed'] as bool?) ?? false,
+      currentTitle: (json['current_title'] as String?) ?? 'Chúa tể ôm giường',
+      ownerName: (json['owner_name'] as String?) ?? 'Bạn của Pet',
       lastInteraction: json['last_interaction'] != null
           ? DateTime.parse(json['last_interaction'] as String)
           : DateTime.now(),
@@ -92,6 +99,8 @@ class PetModel {
       'message': message,
       'current_task': currentTask,
       'is_task_completed': isTaskCompleted,
+      'current_title': currentTitle,
+      'owner_name': ownerName,
       'last_interaction': lastInteraction.toIso8601String(),
     };
   }
@@ -106,6 +115,8 @@ class PetModel {
     String? message,
     String? currentTask,
     bool? isTaskCompleted,
+    String? currentTitle,
+    String? ownerName,
   }) {
     return PetModel(
       id: id,
@@ -119,6 +130,8 @@ class PetModel {
       message: message ?? this.message,
       currentTask: currentTask ?? this.currentTask,
       isTaskCompleted: isTaskCompleted ?? this.isTaskCompleted,
+      currentTitle: currentTitle ?? this.currentTitle,
+      ownerName: ownerName ?? this.ownerName,
       lastInteraction: DateTime.now(),
     );
   }
@@ -157,6 +170,8 @@ class PetModel {
       message: (data['message'] as String?) ?? '',
       currentTask: (data['current_task'] as String?) ?? '',
       isTaskCompleted: (data['is_task_completed'] as bool?) ?? false,
+      currentTitle: (data['current_title'] as String?) ?? 'Chúa tể ôm giường',
+      ownerName: (data['owner_name'] as String?) ?? 'Bạn của Pet',
       lastInteraction: data['last_interaction'] != null
           ? DateTime.tryParse(data['last_interaction'] as String) ?? DateTime.now()
           : DateTime.now(),

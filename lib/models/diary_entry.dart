@@ -33,6 +33,13 @@ class DiaryEntry {
   final List<String> symptoms;
   final String? note;
 
+  // ─── Dinh dưỡng ───────────────────────────────────────────
+  final int consumedCalories;
+  final int consumedProtein;
+  final int consumedCarbs;
+  final int consumedFat;
+  final List<String> todayFoods;
+
   // ─── Metadata ─────────────────────────────────────────────
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -53,6 +60,11 @@ class DiaryEntry {
     this.energyLevel = 0.5,
     this.symptoms = const [],
     this.note,
+    this.consumedCalories = 0,
+    this.consumedProtein = 0,
+    this.consumedCarbs = 0,
+    this.consumedFat = 0,
+    this.todayFoods = const [],
     DateTime? createdAt,
     this.updatedAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -78,6 +90,14 @@ class DiaryEntry {
               .toList() ??
           [],
       note: json['note'] as String?,
+      consumedCalories: (json['consumed_calories'] as int?) ?? 0,
+      consumedProtein: (json['consumed_protein'] as int?) ?? 0,
+      consumedCarbs: (json['consumed_carbs'] as int?) ?? 0,
+      consumedFat: (json['consumed_fat'] as int?) ?? 0,
+      todayFoods: (json['today_foods'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -104,6 +124,11 @@ class DiaryEntry {
       'energy_level': energyLevel,
       'symptoms': symptoms,
       'note': note,
+      'consumed_calories': consumedCalories,
+      'consumed_protein': consumedProtein,
+      'consumed_carbs': consumedCarbs,
+      'consumed_fat': consumedFat,
+      'today_foods': todayFoods,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -122,6 +147,11 @@ class DiaryEntry {
     double? energyLevel,
     List<String>? symptoms,
     String? note,
+    int? consumedCalories,
+    int? consumedProtein,
+    int? consumedCarbs,
+    int? consumedFat,
+    List<String>? todayFoods,
   }) {
     return DiaryEntry(
       id: id,
@@ -139,6 +169,11 @@ class DiaryEntry {
       energyLevel: energyLevel ?? this.energyLevel,
       symptoms: symptoms ?? this.symptoms,
       note: note ?? this.note,
+      consumedCalories: consumedCalories ?? this.consumedCalories,
+      consumedProtein: consumedProtein ?? this.consumedProtein,
+      consumedCarbs: consumedCarbs ?? this.consumedCarbs,
+      consumedFat: consumedFat ?? this.consumedFat,
+      todayFoods: todayFoods ?? this.todayFoods,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );

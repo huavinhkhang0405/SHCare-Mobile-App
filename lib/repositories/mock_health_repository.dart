@@ -82,6 +82,22 @@ class MockHealthRepository implements HealthRepository {
     return List.generate(30, (i) {
       final date = today.subtract(Duration(days: i));
       final isGoodDay = _random.nextBool();
+      
+      final mockFoods = isGoodDay
+          ? ['Phở bò', 'Nước cam', 'Cơm gà', 'Salad ức gà']
+          : ['Bánh mì chả', 'Cà phê đá', 'Mì gói', 'Coca Cola'];
+      final calories = isGoodDay
+          ? 1800 + _random.nextInt(400)
+          : 1200 + _random.nextInt(400);
+      final protein = isGoodDay
+          ? 80 + _random.nextInt(20)
+          : 40 + _random.nextInt(20);
+      final carbs = isGoodDay
+          ? 200 + _random.nextInt(50)
+          : 150 + _random.nextInt(50);
+      final fat = isGoodDay
+          ? 50 + _random.nextInt(15)
+          : 40 + _random.nextInt(15);
 
       return DiaryEntry(
         id: 'diary_${30 - i}',
@@ -109,6 +125,11 @@ class MockHealthRepository implements HealthRepository {
                 .where((_) => _random.nextBool())
                 .toList(),
         note: i == 0 ? 'Hôm nay cảm thấy tốt, đã tập thể dục sáng.' : null,
+        consumedCalories: calories,
+        consumedProtein: protein,
+        consumedCarbs: carbs,
+        consumedFat: fat,
+        todayFoods: mockFoods,
       );
     });
   }

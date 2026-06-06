@@ -140,4 +140,21 @@ class AuthService {
       rethrow;
     }
   }
+
+  // 6. Gửi email đặt lại mật khẩu
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      if (kDebugMode) {
+        print('Lỗi gửi email đặt lại mật khẩu: ${e.code} - ${e.message}');
+      }
+      rethrow;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Lỗi không xác định khi gửi email đặt lại mật khẩu: $e');
+      }
+      rethrow;
+    }
+  }
 }

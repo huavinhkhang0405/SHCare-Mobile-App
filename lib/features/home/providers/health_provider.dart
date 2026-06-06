@@ -15,6 +15,10 @@ import '../../../models/nutrition_analysis_result.dart';
 import '../../../services/sensor/health_sensor_service.dart';
 import '../../../services/screen_time_service.dart';
 import '../../../models/user_model.dart';
+import '../../../models/diary_entry.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../services/social/title_service.dart';
+import '../../../services/social/social_service.dart';
 
 class HealthProvider extends ChangeNotifier {
   UserModel? _currentUser;
@@ -113,6 +117,21 @@ class HealthProvider extends ChangeNotifier {
     final cleanId = user?.id ?? '';
     _currentUser = user;
 
+    // Tự sinh Friend Code nếu trống hoặc không hợp lệ (self-healing cho cả tài khoản cũ/mới)
+    if (user != null && (user.friendCode.isEmpty || !RegExp(r'^[A-Z0-9]+$').hasMatch(user.friendCode))) {
+      try {
+        final code = await SocialService().generateUniqueFriendCode(user.name);
+        await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+          'friend_code': code,
+        });
+        _currentUser = user.copyWith(friendCode: code);
+        debugPrint('🔮 [HealthProvider] Đã tự sinh Friend Code cho ${user.name}: $code');
+        notifyListeners();
+      } catch (e) {
+        debugPrint('🚨 [HealthProvider] Lỗi sinh Friend Code: $e');
+      }
+    }
+
     if (_currentUserId != cleanId) {
       _currentUserId = cleanId;
       _lastDeviceSteps = -1; // Reset device steps baseline for the new profile
@@ -125,6 +144,39 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setString('current_user_email', cleanId);
       } catch (e) {
         debugPrint('🚨 [HealthProvider] Lỗi khi lưu current_user_email: $e');
+      }
+
+      // Thiết lập lắng nghe Poke chọc ghẹo realtime cho user mới
+      _pokeSubscription?.cancel();
+      if (_currentUserId.isNotEmpty) {
+        _pokeSubscription = SocialService().streamPokes(_currentUserId).listen((snapshot) async {
+          if (snapshot.docs.isNotEmpty) {
+            final newestDoc = snapshot.docs.first;
+            final data = newestDoc.data() as Map<String, dynamic>?;
+            if (data != null) {
+              final senderName = data['sender_name'] as String? ?? 'Bạn bè';
+              final pokeType = data['poke_type'] as String? ?? 'lazy';
+              final docId = newestDoc.id;
+
+              String message = '';
+              if (pokeType == 'lazy') {
+                message = 'Chiến thần đi bộ $senderName chọc quê bạn vì làm [Cột sống bất ổn]!';
+              } else if (pokeType == 'water') {
+                message = 'Đại sứ đại dương $senderName nhắc nhở cây héo như bạn uống nước [Sa mạc lời]!';
+              } else if (pokeType == 'sleep') {
+                message = 'Chiến thần ngủ ngon $senderName giục cú đêm như bạn [Cú đêm deadline] đi ngủ!';
+              } else {
+                message = '$senderName vừa chọc bạn một cái!';
+              }
+
+              _latestPokeMessage = message;
+              notifyListeners();
+
+              // Garbage Collection: Xóa tài liệu ngay sau khi nhận để tránh phình to DB
+              await SocialService().deletePoke(_currentUserId, docId);
+            }
+          }
+        });
       }
 
       _loadStateFromPrefs();
@@ -242,12 +294,38 @@ class HealthProvider extends ChangeNotifier {
   int _consumedCarbs = 0;
   int _consumedFat = 0;
   List<String> _todayFoods = [];
+  String _todayNote = '';
 
   int get consumedCalories => _consumedCalories;
   int get consumedProtein => _consumedProtein;
   int get consumedCarbs => _consumedCarbs;
   int get consumedFat => _consumedFat;
   List<String> get todayFoods => _todayFoods;
+  String get todayNote => _todayNote;
+
+  StreamSubscription<QuerySnapshot>? _pokeSubscription;
+  String? _latestPokeMessage;
+  String? get latestPokeMessage => _latestPokeMessage;
+
+  void clearLatestPokeMessage() {
+    _latestPokeMessage = null;
+    notifyListeners();
+  }
+
+  void setTodayNote(String value) {
+    _todayNote = value;
+    _saveTodayNote();
+    notifyListeners();
+  }
+
+  Future<void> _saveTodayNote() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_getKey('today_note'), _todayNote);
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu today_note: $e');
+    }
+  }
 
   // Dữ liệu hiển thị Pet AI trên Home
   String _petState = 'Năng động';
@@ -378,7 +456,7 @@ class HealthProvider extends ChangeNotifier {
   List<double> get weeklyActivity => List<double>.unmodifiable(_weeklyActivity);
 
   double get weeklyAverageActivity {
-    final total = _weeklyActivity.fold<double>(0, (sum, item) => sum + item);
+    final total = _weeklyActivity.fold<double>(0, (totalSum, item) => totalSum + item);
     return total / _weeklyActivity.length;
   }
 
@@ -855,6 +933,7 @@ class HealthProvider extends ChangeNotifier {
     _effectResetTimer?.cancel();
     _sensorService.dispose(); // Hủy lắng nghe luồng đếm bước chân
     _screenSubscription?.cancel(); // Hủy lắng nghe sự kiện màn hình
+    _pokeSubscription?.cancel(); // Hủy lắng nghe Poke
     super.dispose();
   }
 
@@ -1041,7 +1120,7 @@ class HealthProvider extends ChangeNotifier {
       await prefs.reload(); // Đảm bảo SharedPreferences đồng bộ giữa UI và Background Isolate
       _hasOnboardedBedtime = prefs.getBool(_getKey('has_onboarded_bedtime')) ?? false;
       final now = DateTime.now();
-      final todayStr = "${now.year}-${now.month}-${now.day}";
+      final todayStr = '${now.year}-${now.month}-${now.day}';
       final lastResetStr = prefs.getString(_getKey('last_task_reset_date'));
 
       if (lastResetStr == todayStr) {
@@ -1070,6 +1149,7 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = prefs.getInt(_getKey('consumed_carbs')) ?? 0;
         _consumedFat = prefs.getInt(_getKey('consumed_fat')) ?? 0;
         _todayFoods = prefs.getStringList(_getKey('today_foods')) ?? [];
+        _todayNote = prefs.getString(_getKey('today_note')) ?? '';
       } else {
         // Reset cho ngày mới
         _isDailyTaskCompleted = false;
@@ -1084,6 +1164,7 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = 0;
         _consumedFat = 0;
         _todayFoods = [];
+        _todayNote = '';
         _onboardingBedtimeInsight = null;
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
@@ -1097,6 +1178,7 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_carbs'), 0);
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
+        await prefs.setString(_getKey('today_note'), '');
       }
       notifyListeners();
 
@@ -1111,7 +1193,7 @@ class HealthProvider extends ChangeNotifier {
 
   Future<void> _checkDayChange() async {
     final now = DateTime.now();
-    final todayStr = "${now.year}-${now.month}-${now.day}";
+    final todayStr = '${now.year}-${now.month}-${now.day}';
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastResetStr = prefs.getString(_getKey('last_task_reset_date'));
@@ -1129,6 +1211,7 @@ class HealthProvider extends ChangeNotifier {
         _consumedCarbs = 0;
         _consumedFat = 0;
         _todayFoods = [];
+        _todayNote = '';
         _onboardingBedtimeInsight = null;
         await prefs.setString(_getKey('last_task_reset_date'), todayStr);
         await prefs.setBool(_getKey('is_daily_task_completed'), false);
@@ -1142,6 +1225,7 @@ class HealthProvider extends ChangeNotifier {
         await prefs.setInt(_getKey('consumed_carbs'), 0);
         await prefs.setInt(_getKey('consumed_fat'), 0);
         await prefs.setStringList(_getKey('today_foods'), []);
+        await prefs.setString(_getKey('today_note'), '');
         notifyListeners();
 
         // Tự động tạo nhiệm vụ AI cho ngày mới
@@ -1437,5 +1521,155 @@ class HealthProvider extends ChangeNotifier {
       start = start.subtract(const Duration(days: 1));
     }
     return start;
+  }
+
+  // --- QUẢN LÝ LỊCH SỬ NHẬT KÝ SỨC KHỎE ---
+  List<DiaryEntry> _diaryHistory = [];
+  bool _isLoadingHistory = false;
+
+  List<DiaryEntry> get diaryHistory => _diaryHistory;
+  bool get isLoadingHistory => _isLoadingHistory;
+
+  /// Tải lịch sử nhật ký từ Firestore
+  Future<void> fetchDiaryHistory() async {
+    if (_currentUserId.isEmpty) return;
+    _isLoadingHistory = true;
+    notifyListeners();
+
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('diaries')
+          .orderBy('date', descending: true)
+          .get();
+
+      _diaryHistory = querySnapshot.docs
+          .map((doc) => DiaryEntry.fromJson({
+                ...doc.data(),
+                'id': doc.id,
+              }))
+          .toList();
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi tải lịch sử nhật ký: $e');
+    }
+
+    _isLoadingHistory = false;
+    notifyListeners();
+  }
+
+  /// Lưu hoặc cập nhật nhật ký hôm nay lên Firestore
+  Future<bool> saveCurrentDiaryEntry(String noteText) async {
+    if (_currentUserId.isEmpty) return false;
+
+    try {
+      final now = DateTime.now();
+      final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      
+      // Tạo một đối tượng DiaryEntry mới
+      final newEntry = DiaryEntry(
+        id: dateStr,
+        userId: _currentUserId,
+        date: DateTime(now.year, now.month, now.day),
+        stepCount: _steps,
+        caloriesBurned: _caloriesBurned,
+        waterIntakeLiters: _waterLiters,
+        sleepMinutes: _sleepMinutes,
+        deepSleepMinutes: _deepSleepMinutes,
+        heartRateBpm: _bpm,
+        restingHeartRate: _restingBpm,
+        hrv: _hrv,
+        moodIndex: _moodIndex,
+        energyLevel: _energyLevel,
+        symptoms: _selectedSymptoms.toList(),
+        note: noteText,
+        consumedCalories: _consumedCalories,
+        consumedProtein: _consumedProtein,
+        consumedCarbs: _consumedCarbs,
+        consumedFat: _consumedFat,
+        todayFoods: _todayFoods,
+      );
+
+      // Lưu lên Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('diaries')
+          .doc(dateStr)
+          .set(newEntry.toJson());
+
+      // Tự động tính danh hiệu Gen Z hôm nay
+      final title = TitleService.calculateTitle(newEntry);
+
+      // Cập nhật Pet trên Firestore
+      final petRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('pets')
+          .doc('current_pet');
+
+      await petRef.update({
+        'current_title': title,
+        'owner_name': _currentUser?.name ?? 'Bạn của Pet',
+      });
+      debugPrint('🏆 [HealthProvider] Đã chấm danh hiệu mới cho Pet: $title');
+
+      // Cập nhật local note
+      _todayNote = noteText;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_getKey('today_note'), noteText);
+
+      // Cập nhật local list _diaryHistory
+      final existingIndex = _diaryHistory.indexWhere((e) => e.id == dateStr);
+      
+      // Tặng EXP cho Pet nếu hôm nay chưa lưu nhật ký lần nào
+      if (existingIndex < 0) {
+        _diaryHistory.insert(0, newEntry);
+        // Tặng +20 EXP cho pet
+        await _petService.gainExperience(_currentUserId, 20);
+        // Cập nhật hiển thị Pet
+        _petTask = 'Đã hoàn thành check-in nhật ký hôm nay! +20 EXP';
+        _triggerPetEnvironmentEffect(didLevelUp: false);
+      } else {
+        _diaryHistory[existingIndex] = newEntry;
+      }
+
+      _refreshPetInsights();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi lưu nhật ký: $e');
+      return false;
+    }
+  }
+
+  /// Xóa một bản ghi nhật ký khỏi Firestore và cache
+  Future<bool> deleteDiaryEntry(String entryId) async {
+    if (_currentUserId.isEmpty) return false;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('diaries')
+          .doc(entryId)
+          .delete();
+
+      // Nếu xóa nhật ký hôm nay, xóa luôn ghi chú trong SharedPreferences và state
+      final now = DateTime.now();
+      final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      if (entryId == dateStr) {
+        _todayNote = '';
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_getKey('today_note'));
+      }
+
+      _diaryHistory.removeWhere((e) => e.id == entryId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi xóa nhật ký: $e');
+      return false;
+    }
   }
 }
