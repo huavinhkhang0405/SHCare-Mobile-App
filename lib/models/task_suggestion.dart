@@ -1,49 +1,19 @@
 /// Mô hình gợi ý sức khỏe từ AI.
-///
-/// Thành viên 3 (AI) tạo danh sách gợi ý dựa trên DiaryEntry + UserModel,
-/// Thành viên 2 (Tips UI) hiển thị lên giao diện.
 class TaskSuggestion {
   final String id;
-  final String userId;
-
-  // ─── Nội dung gợi ý ──────────────────────────────────────
-  final String title;
+  final String taskName;
   final String description;
-  final String category; // 'Dinh dưỡng' | 'Vận động' | 'Tinh thần' | 'Ngủ'
-  final String duration; // Ví dụ: '5 phút', '10 phút'
-  final int priority; // 1 = cao nhất, 3 = thấp nhất
-
-  // ─── AI Integration Fields ────────────────────────────────
-  /// EXP thưởng khi hoàn thành nhiệm vụ (do AI gán)
-  final int expReward; // Dễ: 20, Vừa: 30, Khó: 50
-  /// Loại nhiệm vụ gốc từ AI: 'water', 'exercise', 'rest', 'general'
+  final int expReward;
   final String type;
-
-  // ─── Trạng thái ───────────────────────────────────────────
+  final bool requiresImage;
+  final bool isFlashQuest;
+  final DateTime? expiresAt;
   final bool isCompleted;
-  final bool isDismissed;
 
-  // ─── Metadata ─────────────────────────────────────────────
-  final DateTime createdAt;
-  final String? source; // 'ai' | 'rule_based' | 'manual'
+  // Compatibility getter to prevent breaking UI references
+  String get title => taskName;
 
-  TaskSuggestion({
-    required this.id,
-    required this.userId,
-    required this.title,
-    required this.description,
-    this.category = 'Vận động',
-    this.duration = '5 phút',
-    this.priority = 2,
-    this.expReward = 20,
-    this.type = 'general',
-    this.isCompleted = false,
-    this.isDismissed = false,
-    DateTime? createdAt,
-    this.source = 'rule_based',
-  }) : createdAt = createdAt ?? DateTime.now();
-
-  // ─── Mapping type AI → category tiếng Việt ────────────────
+  // Type-to-category mapping for backward compatibility
   static const Map<String, String> _typeToCategoryMap = {
     'water': 'Dinh dưỡng',
     'exercise': 'Vận động',
@@ -52,83 +22,101 @@ class TaskSuggestion {
     'general': 'Vận động',
   };
 
-  /// Parse từ Firestore / format cũ
+  String get category => _typeToCategoryMap[type] ?? 'Vận động';
+  String get duration => '5 phút';
+  int get priority => expReward >= 50 ? 1 : (expReward >= 30 ? 2 : 3);
+
+  TaskSuggestion({
+    required this.id,
+    String taskName = '',
+    required this.description,
+    this.expReward = 20,
+    this.type = 'general',
+    this.requiresImage = false,
+    this.isFlashQuest = false,
+    this.expiresAt,
+    this.isCompleted = false,
+    // Compatibility fields to prevent compile issues on mock data instantiations
+    String? title,
+    String? userId,
+    String? category,
+    String? duration,
+    int? priority,
+    String? source,
+  }) : taskName = taskName.isNotEmpty ? taskName : (title ?? '');
+
+  // Ép dữ liệu từ luồng lưu trữ SharedPreferences (Lưu mốc thời gian tuyệt đối)
   factory TaskSuggestion.fromJson(Map<String, dynamic> json) {
     return TaskSuggestion(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      category: (json['category'] as String?) ?? 'Vận động',
-      duration: (json['duration'] as String?) ?? '5 phút',
-      priority: (json['priority'] as int?) ?? 2,
-      expReward: (json['exp_reward'] as int?) ?? 20,
-      type: (json['type'] as String?) ?? 'general',
-      isCompleted: (json['is_completed'] as bool?) ?? false,
-      isDismissed: (json['is_dismissed'] as bool?) ?? false,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : DateTime.now(),
-      source: json['source'] as String?,
+      id: json['id'] ?? '',
+      taskName: json['task_name'] ?? json['title'] ?? '', // Support historical fallback
+      description: json['description'] ?? '',
+      expReward: json['exp_reward'] ?? 0,
+      type: json['type'] ?? '',
+      requiresImage: json['requires_image'] ?? false,
+      isFlashQuest: json['is_flash_quest'] ?? false,
+      expiresAt: json['expires_at'] != null ? DateTime.parse(json['expires_at']) : null,
+      isCompleted: json['is_completed'] ?? false,
     );
   }
 
-  /// Parse từ response AI Gemini (format: task_name, exp_reward, type)
-  /// Tự động map type → category tiếng Việt, và sinh id duy nhất.
-  factory TaskSuggestion.fromAiJson(Map<String, dynamic> json, {String userId = 'mock_user_001'}) {
-    final aiType = (json['type'] as String?) ?? 'general';
-    final category = _typeToCategoryMap[aiType] ?? 'Vận động';
-    final expReward = (json['exp_reward'] as int?) ?? 20;
+  // Ép dữ liệu gốc sinh ra lần đầu tiên từ Gemini API
+  factory TaskSuggestion.fromAiJson(Map<String, dynamic> json, String generatedId) {
+    int? minutes = json['expires_in_minutes'] != null ?
+        int.tryParse(json['expires_in_minutes'].toString()) : null;
 
     return TaskSuggestion(
-      id: 'ai_${DateTime.now().millisecondsSinceEpoch}_${json.hashCode}',
-      userId: userId,
-      title: (json['task_name'] as String?) ?? 'Nhiệm vụ ẩn',
-      description: (json['description'] as String?) ?? '',
-      category: category,
-      expReward: expReward,
-      type: aiType,
-      priority: expReward >= 50 ? 1 : (expReward >= 30 ? 2 : 3),
-      source: 'ai',
+      id: generatedId,
+      taskName: json['task_name'] ?? json['title'] ?? '',
+      description: json['description'] ?? '',
+      expReward: json['exp_reward'] ?? 0,
+      type: json['type'] ?? '',
+      requiresImage: json['requires_image'] is bool 
+          ? json['requires_image'] 
+          : (json['requires_image']?.toString().toLowerCase() == 'true'),
+      isFlashQuest: json['is_flash_quest'] is bool 
+          ? json['is_flash_quest'] 
+          : (json['is_flash_quest']?.toString().toLowerCase() == 'true'),
+      expiresAt: minutes != null ? DateTime.now().add(Duration(minutes: minutes)) : null,
+      isCompleted: false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'user_id': userId,
-      'title': title,
+      'task_name': taskName,
       'description': description,
-      'category': category,
-      'duration': duration,
-      'priority': priority,
       'exp_reward': expReward,
       'type': type,
+      'requires_image': requiresImage,
+      'is_flash_quest': isFlashQuest,
+      'expires_at': expiresAt?.toIso8601String(),
       'is_completed': isCompleted,
-      'is_dismissed': isDismissed,
-      'created_at': createdAt.toIso8601String(),
-      'source': source,
     };
   }
 
   TaskSuggestion copyWith({
+    String? id,
+    String? taskName,
+    String? description,
+    int? expReward,
+    String? type,
+    bool? requiresImage,
+    bool? isFlashQuest,
+    DateTime? expiresAt,
     bool? isCompleted,
-    bool? isDismissed,
   }) {
     return TaskSuggestion(
-      id: id,
-      userId: userId,
-      title: title,
-      description: description,
-      category: category,
-      duration: duration,
-      priority: priority,
-      expReward: expReward,
-      type: type,
+      id: id ?? this.id,
+      taskName: taskName ?? this.taskName,
+      description: description ?? this.description,
+      expReward: expReward ?? this.expReward,
+      type: type ?? this.type,
+      requiresImage: requiresImage ?? this.requiresImage,
+      isFlashQuest: isFlashQuest ?? this.isFlashQuest,
+      expiresAt: expiresAt ?? this.expiresAt,
       isCompleted: isCompleted ?? this.isCompleted,
-      isDismissed: isDismissed ?? this.isDismissed,
-      createdAt: createdAt,
-      source: source,
     );
   }
 }

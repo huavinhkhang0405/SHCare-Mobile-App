@@ -112,8 +112,10 @@ class MockHealthRepository implements HealthRepository {
             : 0.5 + _random.nextDouble() * 0.8,
         sleepMinutes: 360 + _random.nextInt(120),
         deepSleepMinutes: 120 + _random.nextInt(80),
-        heartRateBpm: 65 + _random.nextInt(25),
-        restingHeartRate: 55 + _random.nextInt(12),
+        // Nhịp tim nghỉ ngơi dao động quanh mức 68 - 72 bpm (mốc của User Admin Demo có BMI chuẩn)
+        restingHeartRate: 68 + _random.nextInt(5), // 68 to 72
+        // Nhịp tim hiện tại quanh mức nhịp tim nghỉ ngơi ±3 bpm
+        heartRateBpm: 68 + _random.nextInt(5) + (_random.nextInt(7) - 3),
         hrv: 40 + _random.nextInt(25),
         moodIndex: isGoodDay ? _random.nextInt(2) : 2 + _random.nextInt(2),
         energyLevel: isGoodDay

@@ -85,6 +85,71 @@ class GeminiService {
     throw Exception('Đã thử tất cả các API key nhưng đều thất bại.');
   }
 
+  /// Làm sạch chuỗi JSON từ Gemini (bỏ markdown code blocks nếu có)
+  String _sanitizeJson(String rawText) {
+    return rawText.replaceAll(RegExp(r'```json|```'), '').trim();
+  }
+
+  /// Xác thực hình ảnh hoàn thành nhiệm vụ qua Gemini AI (Multimodal)
+  Future<bool> verifyTaskWithImage({
+    required Uint8List imageBytes,
+    required String taskTitle,
+    required String taskDescription,
+  }) async {
+    if (!_isConfigured) {
+      // Nếu không có API Key, tự động trả về true để test offline không bị nghẽn
+      return true;
+    }
+
+    final prompt = '''
+Bạn là trợ lý ảo kiểm định nhiệm vụ trong ứng dụng sức khỏe SHCare. 
+Hãy phân tích hình ảnh được cung cấp xem có khớp với bằng chứng hoàn thành nhiệm vụ này hay không:
+- Tên nhiệm vụ: "$taskTitle"
+- Mô tả nhiệm vụ: "$taskDescription"
+
+[Quy tắc xác thực]
+1. Kiểm tra xem hình ảnh có chứa bằng chứng thực hiện nhiệm vụ hay không (Ví dụ: Nhiệm vụ là "Ăn 1 loại trái cây" thì ảnh phải chứa trái cây, quả táo, quả chuối, quả cam... Nhiệm vụ là "Uống nước" thì ảnh phải chứa ly nước, bình nước, chai nước... Nhiệm vụ là "Đi bộ" hay "Vận động" thì có thể chứa giày thể thao, phòng gym, công viên, đường chạy...).
+2. Nếu hình ảnh đúng là bằng chứng thực hiện nhiệm vụ, trả về true.
+3. Nếu hình ảnh hoàn toàn không liên quan, hoặc là ảnh chụp màn hình trống, hoặc không chứa bất kỳ bằng chứng nào liên quan, trả về false.
+
+TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản nào ngoài JSON):
+{
+  "is_valid": true,
+  "reason": "Giải thích ngắn gọn tại sao hợp lệ hoặc không hợp lệ"
+}
+''';
+
+    try {
+      final content = [
+        Content.multi([
+          DataPart('image/jpeg', imageBytes),
+          TextPart(prompt),
+        ])
+      ];
+
+      final text = await _executeWithRotation(
+        (model) async {
+          final response = await model.generateContent(content);
+          return response.text;
+        },
+        config: GenerationConfig(
+          responseMimeType: 'application/json',
+          temperature: 0.2, // Giảm temperature để kết quả xác thực ổn định và chính xác
+        ),
+      );
+
+      if (text == null || text.isEmpty) {
+        return false;
+      }
+
+      final Map<String, dynamic> jsonResult = json.decode(_sanitizeJson(text));
+      return jsonResult['is_valid'] as bool? ?? false;
+    } catch (e) {
+      debugPrint('🚨 [GeminiService] Lỗi xác thực ảnh nhiệm vụ: $e');
+      return false;
+    }
+  }
+
   /// Phân tích hình ảnh món ăn hoặc đồ uống sử dụng mô hình đa phương thức (Multimodal).
   Future<NutritionAnalysisResult> analyzeNutritionImage(
     Uint8List imageBytes, {
@@ -146,7 +211,7 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
       }
 
       // Parse JSON kết quả
-      final Map<String, dynamic> jsonResult = json.decode(text);
+      final Map<String, dynamic> jsonResult = json.decode(_sanitizeJson(text));
       return NutritionAnalysisResult.fromJson(jsonResult);
     } catch (e) {
       debugPrint('🚨 [GeminiService] Lỗi phân tích ảnh thực phẩm: $e');
@@ -173,6 +238,7 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
     String? activityLevel,
     String? targetBedtime,
     String? targetWakeTime,
+    List<Map<String, dynamic>> taskHistory = const [],
   }) async {
     // Nếu chưa có API key, trả fallback ngay
     if (!_isConfigured) {
@@ -185,9 +251,13 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
         ? weightKg / ((heightCm / 100) * (heightCm / 100))
         : 22.0;
 
+    final historyString = taskHistory.isEmpty 
+        ? "Chưa có dữ liệu lịch sử." 
+        : taskHistory.map((h) => "- ${h['task_name'] ?? h['title'] ?? ''}: ${h['is_completed'] == true ? 'Hoàn thành' : 'Bỏ qua'}").join('\n');
+
     // ─── 1. Prompt Engineering ──────────────────────────────
     final prompt = '''
-Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa vào các chỉ số sức khỏe real-time và thông tin cá nhân/thói quen sau đây của người dùng, hãy tạo ra ĐÚNG 3 nhiệm vụ nhỏ (micro-tasks) để giúp họ cải thiện tình trạng hiện tại. Mỗi ngày người dùng chỉ được làm tối đa 3 nhiệm vụ này.
+Bạn là lõi AI thông minh tối cao của ứng dụng SHCare, có nhiệm vụ lập lịch trình chính xác 3 nhiệm vụ sức khỏe hàng ngày cho người dùng.
 
 [Thông tin cá nhân & Thói quen]
 - Chiều cao: ${heightCm?.toStringAsFixed(0) ?? '170'} cm
@@ -205,31 +275,41 @@ Bạn là một chuyên gia sức khỏe ảo trong ứng dụng SHCare. Dựa v
 - Mức năng lượng: ${(energyLevel * 100).toInt()}%
 - 📱 Hoạt động kỹ thuật số (Screen Time): $screenTimeData
 
-[Quy tắc sinh nhiệm vụ]
-1. BẮT BUỘC tạo ĐÚNG 3 nhiệm vụ, không hơn không kém.
-2. Phân tích: Nếu "Lượng nước" dưới 50% mục tiêu, BẮT BUỘC có nhiệm vụ uống nước (type: "water").
-3. Phân tích: Nếu "Nhịp tim" lớn hơn 90bpm, BẮT BUỘC có nhiệm vụ hít thở hoặc nghỉ ngơi (type: "relax").
-4. DIGITAL DETOX: Đọc biến "Hoạt động kỹ thuật số (Screen Time)". Nếu người dùng sử dụng Mạng xã hội / Game (TikTok, Facebook, YouTube, Instagram...) VƯỢT QUÁ 5 phút (ngưỡng thử nghiệm theo yêu cầu của người dùng để test tính năng hoạt động), BẮT BUỘC sinh ra 1 nhiệm vụ rời xa màn hình (Ví dụ: "Nhắm mắt thư giãn 5 phút", "Đi dạo ngoài trời 15 phút" với type: "relax" hoặc "exercise").
-5. Trọng số EXP: Nhiệm vụ dễ (20 EXP), Vừa (30 EXP), Khó (50 EXP).
-6. Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
-7. 3 nhiệm vụ phải đa dạng, không trùng lặp loại (type).
-8. CÁ NHÂN HÓA PHÙ HỢP THỂ TRẠNG:
-   - Dựa vào Tần suất tập thể dục của người dùng để thiết kế độ khó của bài tập phù hợp:
-     + Nếu Tần suất là "Không tập luyện": Giao nhiệm vụ siêu nhẹ nhàng (đi bộ 5-10 phút, đứng dậy giãn cơ 2 phút). KHÔNG giao chạy bộ hay tập nặng.
-     + Nếu Tần suất là "Ít (1-2 ngày/tuần)": Giao nhiệm vụ nhẹ đến trung bình (đi bộ 10-15 phút, vươn vai).
-     + Nếu Tần suất là "Vừa phải (3-5 ngày/tuần)": Giao các bài tập trung bình (như squat 15-20 cái, đi bộ nhanh 15 phút).
-     + Nếu Tần suất là "Nhiều (6-7 ngày/tuần)": Có thể giao nhiệm vụ nâng cao (chạy bộ nhẹ 20 phút, bài tập HIIT ngắn).
-   - Dựa vào BMI:
-     + Nếu người dùng béo phì hoặc thừa cân (BMI >= 23): Tránh giao bài tập nhảy cao hoặc tác động mạnh đến khớp gối, ưu tiên đi bộ, giãn cơ hoặc tập thân trên.
-   - Dựa vào mục tiêu giấc ngủ: Giao nhiệm vụ chuẩn bị ngủ (type: "relax") ví dụ như tắt thiết bị trước giờ đi ngủ mục tiêu 30 phút.
+[LỊCH SỬ HOÀN THÀNH 3 NGÀY QUA CỦA NGƯỜI DÙNG]
+$historyString
 
-TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
+[QUY TẮC CÁ NHÂN HÓA ĐỘ KHÓ (DDA)]
+- Phân tích lịch sử trên: Nếu thấy người dùng liên tục bỏ qua nhiệm vụ khó, hãy hạ độ khó xuống để tạo động lực. Nếu họ hoàn thành xuất sắc, hãy tăng tính thử thách dần.
+- Luôn sinh chính xác 3 nhiệm vụ với phân cấp phần thưởng EXP nghiêm ngặt:
+  + 1 Nhiệm vụ Dễ: Phần thưởng ĐÚNG 20 EXP.
+  + 1 Nhiệm vụ Vừa: Phần thưởng ĐÚNG 30 EXP.
+  + 1 Nhiệm vụ Khó: Phần thưởng ĐÚNG 50 EXP.
+- Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
+- 3 nhiệm vụ phải đa dạng, không trùng lặp loại (type): 'water', 'exercise', 'rest', 'sleep'.
+
+[QUY TẮC PHÂN BỔ PHƯƠNG THỨC XÁC THỰC HÌNH ẢNH (requires_image)]
+- Chỉ gán `requires_image` là true cho các hoạt động vật lý có thể chụp ảnh kiểm chứng trực quan rõ ràng tại thực địa: uống nước (chụp ly nước, chai nước), ăn đĩa hoa quả/rau xanh/trái cây, giãn cơ trên thảm tập yoga, thảm tập tại phòng gym, dụng cụ tạ, giày thể thao ngoài trời khi chạy bộ/đi bộ.
+- BẮT BUỘC gán `requires_image` là false cho các hoạt động tinh thần, giấc ngủ, giãn cơ tại chỗ trong văn phòng hoặc hành động diễn ra trong không gian riêng tư nhạy cảm: nhắm mắt thư giãn, bài tập thở thở 4-7-8, đi ngủ đúng giờ, dọn dường ngủ, tắm rửa vệ sinh cá nhân, rời xa điện thoại (digital detox), xoay cổ tại chỗ.
+- Luật Tie-breaker: Nếu một nhiệm vụ đan xen cả hành động vật lý lẫn tinh thần/thời gian (Ví dụ: "Uống 1 ly nước ấm và nhắm mắt thư giãn 5 phút"), bắt buộc gán `"requires_image": false` để giảm thiểu rào cản thao tác cho người dùng.
+
+[QUY TẮC ĐẶT GIỜ VÀNG (Flash Quests)]
+- Chọn duy nhất 1 trong 3 nhiệm vụ phù hợp để biến thành Nhiệm vụ giờ vàng. Gán cờ `"is_flash_quest": true`.
+- Nhiệm vụ được chọn phải mang tính chất có thể thực hiện nhanh ngay lập tức (Ví dụ: uống ngay 1 ly nước, đứng dậy vươn vai 2 phút tại chỗ).
+- Gán trường `"expires_in_minutes"` từ 30 đến 60 phút. Các nhiệm vụ còn lại đặt `"is_flash_quest": false` và `"expires_in_minutes": null`.
+
+[ĐỊNH DẠNG ĐẦU RA BẮT BUỘC]
+Trả về một mảng JSON thuần túy (luôn gồm đúng 3 phần tử), TUYỆT ĐỐI không bao bọc trong mã khối markdown (vd: không chứa thẻ ```json hay ```), không chứa khoảng trắng thừa hay ký tự lạ. Các trường boolean phải ở dạng kiểu dữ liệu nguyên bản, không bọc trong dấu ngoặc kép.
+
+Mẫu cấu trúc JSON chính xác:
 [
   {
-    "task_name": "Tên nhiệm vụ (tối đa 5 từ)",
-    "description": "Cách thực hiện chi tiết (1 câu ngắn)",
-    "exp_reward": 30,
-    "type": "water"
+    "task_name": "Ăn 1 quả táo xanh",
+    "description": "Bổ sung vitamin và chất xơ cho hệ tiêu hóa vào buổi sáng.",
+    "exp_reward": 20,
+    "type": "nutrition",
+    "requires_image": true,
+    "is_flash_quest": false,
+    "expires_in_minutes": null
   }
 ]
 ''';
@@ -253,10 +333,12 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
       debugPrint('✅ [GeminiService] Nhận response: ${text.substring(0, text.length.clamp(0, 200))}');
 
       // ─── 3. Parse JSON thành Object Dart ──────────────────
-      final List<dynamic> jsonList = json.decode(text);
-      return jsonList
-          .map((item) => TaskSuggestion.fromAiJson(item as Map<String, dynamic>))
-          .toList();
+      final List<dynamic> jsonList = json.decode(_sanitizeJson(text));
+      return jsonList.map((item) {
+        final Map<String, dynamic> map = item as Map<String, dynamic>;
+        final String generatedId = 'ai_${DateTime.now().millisecondsSinceEpoch}_${map.hashCode}';
+        return TaskSuggestion.fromAiJson(map, generatedId);
+      }).toList();
     } catch (e) {
       debugPrint('🚨 [GeminiService] Lỗi khi gọi Gemini: $e');
       // ─── 4. Fallback Logic ────────────────────────────────
@@ -301,7 +383,7 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG JSON SAU (luôn 3 phần tử):
       if (text == null || text.isEmpty) return null;
 
       // Parse JSON thành Map
-      final Map<String, dynamic> jsonMap = json.decode(text);
+      final Map<String, dynamic> jsonMap = json.decode(_sanitizeJson(text));
       return NutritionResult.fromJson(jsonMap);
     } catch (e) {
       debugPrint('🚨 Lỗi AI phân tích thức ăn: $e');
@@ -393,7 +475,7 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
         category: 'Dinh dưỡng',
         expReward: 20,
         type: 'water',
-        priority: 1,
+        priority: 3,
         source: 'rule_based',
       ),
       TaskSuggestion(
@@ -408,14 +490,15 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
         source: 'rule_based',
       ),
       TaskSuggestion(
-        id: 'fallback_exercise_${DateTime.now().millisecondsSinceEpoch}',
+        id: 'fallback_fruit_${DateTime.now().millisecondsSinceEpoch}',
         userId: 'mock_user_001',
-        title: 'Đi bộ 500 bước',
-        description: 'Đi bộ nhẹ nhàng xung quanh để kích hoạt cơ thể.',
-        category: 'Vận động',
-        expReward: 30,
-        type: 'exercise',
-        priority: 2,
+        title: 'Ăn 1 loại trái cây',
+        description: 'Chụp ảnh 1 quả chuối, táo hoặc cam bạn ăn hôm nay.',
+        category: 'Dinh dưỡng',
+        expReward: 50,
+        type: 'water',
+        requiresImage: true,
+        priority: 1,
         source: 'rule_based',
       ),
     ];

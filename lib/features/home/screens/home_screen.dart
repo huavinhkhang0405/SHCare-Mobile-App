@@ -44,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   int _remainingScans = 3;
   bool _isSleepSheetOpen = false;
+  bool _isVerifyingTask = false;
+  bool _isPurchasing = false;
 
   void _checkAndShowSleepConfirmation(HealthProvider healthData) {
     if (healthData.shouldShowSleepConfirmation && !_isSleepSheetOpen) {
@@ -120,6 +122,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     WidgetsBinding.instance.addObserver(this);
     
+    // Khởi động giả lập nhịp tim
+    context.read<HealthProvider>().startHeartRateSimulation();
+    
     // Xin quyền thông báo và đăng ký dịch vụ chạy ngầm
     _requestNotificationPermissionAndRegisterWorkmanager();
   }
@@ -150,6 +155,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _typingTimer?.cancel();
+    
+    // Dừng giả lập nhịp tim
+    context.read<HealthProvider>().stopHeartRateSimulation();
+
     super.dispose();
   }
 
@@ -380,8 +389,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   final hasActiveAiTask = activeTasks.isNotEmpty;
                   final activeTask = hasActiveAiTask ? activeTasks.first : null;
 
+                  final isFlashQuestActive = activeTask != null &&
+                      activeTask.isFlashQuest &&
+                      activeTask.expiresAt != null &&
+                      DateTime.now().isBefore(activeTask.expiresAt!);
+                  final finalExpReward = activeTask != null
+                      ? (isFlashQuestActive ? activeTask.expReward * 2 : activeTask.expReward)
+                      : 0;
+
                   final buttonText = activeTask != null
-                      ? "Hoàn thành: ${activeTask.title} (+${activeTask.expReward} EXP)"
+                      ? (activeTask.requiresImage
+                          ? "📷 Chụp ảnh xác thực: ${activeTask.title} (+$finalExpReward EXP)"
+                          : "Hoàn thành: ${activeTask.title} (+$finalExpReward EXP)")
                       : "Đã hoàn thành tất cả nhiệm vụ hôm nay! 🎉";
 
                   return Column(
@@ -461,9 +480,115 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD7B56D)),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
+                                 const SizedBox(height: 12),
+                                 // HÀNG GAMIFICATION THUỘC TÍNH PET (STREAK, BUỒN, COINS)
+                                 Row(
+                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                   children: [
+                                     Row(
+                                       children: [
+                                         const Text("🔥", style: TextStyle(fontSize: 16)),
+                                         const SizedBox(width: 4),
+                                         Text(
+                                           "${pet.streakCount} ngày",
+                                           style: const TextStyle(
+                                             color: Color(0xFFFF8C00),
+                                             fontWeight: FontWeight.w800,
+                                             fontSize: 12,
+                                           ),
+                                         ),
+                                         const SizedBox(width: 14),
+                                         const Text("❄️", style: TextStyle(fontSize: 16)),
+                                         const SizedBox(width: 4),
+                                         Text(
+                                           "${pet.streakFreezeCount} bùa",
+                                           style: const TextStyle(
+                                             color: Color(0xFF00BFFF),
+                                             fontWeight: FontWeight.w800,
+                                             fontSize: 12,
+                                           ),
+                                         ),
+                                         const SizedBox(width: 14),
+                                         const Text("🪙", style: TextStyle(fontSize: 16)),
+                                         const SizedBox(width: 4),
+                                         Text(
+                                           "${pet.goldCoins} vàng",
+                                           style: const TextStyle(
+                                             color: Color(0xFFFFD700),
+                                             fontWeight: FontWeight.w800,
+                                             fontSize: 12,
+                                           ),
+                                         ),
+                                       ],
+                                     ),
+                                     SizedBox(
+                                       height: 28,
+                                       child: ElevatedButton.icon(
+                                         onPressed: _isPurchasing
+                                             ? null
+                                             : () async {
+                                                 setState(() {
+                                                   _isPurchasing = true;
+                                                 });
+                                                 try {
+                                                   final success = await healthData.purchaseStreakFreeze();
+                                                   if (success && mounted) {
+                                                     ScaffoldMessenger.of(context).showSnackBar(
+                                                       const SnackBar(
+                                                         content: Text('🎉 Đã mua thành công 1 Bùa Đóng Băng! (-50 🪙)'),
+                                                         backgroundColor: Colors.green,
+                                                       ),
+                                                     );
+                                                   }
+                                                 } catch (e) {
+                                                   if (mounted) {
+                                                     ScaffoldMessenger.of(context).showSnackBar(
+                                                       SnackBar(
+                                                         content: Text('🚨 ${e.toString().replaceAll('Exception: ', '')}'),
+                                                         backgroundColor: Colors.red,
+                                                       ),
+                                                     );
+                                                   }
+                                                 } finally {
+                                                   if (mounted) {
+                                                     setState(() {
+                                                       _isPurchasing = false;
+                                                     });
+                                                   }
+                                                 }
+                                               },
+                                         icon: _isPurchasing
+                                             ? const SizedBox(
+                                                 width: 10,
+                                                 height: 10,
+                                                 child: CircularProgressIndicator(
+                                                   strokeWidth: 1.5,
+                                                   color: Colors.black54,
+                                                 ),
+                                               )
+                                             : const Icon(Icons.shopping_cart_rounded, size: 12, color: Colors.black87),
+                                         label: const Text(
+                                           "Mua bùa (50)",
+                                           style: TextStyle(
+                                             fontSize: 9,
+                                             fontWeight: FontWeight.w800,
+                                             color: Colors.black87,
+                                           ),
+                                         ),
+                                         style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFD7B56D),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                         ),
+                                       ),
+                                     ),
+                                   ],
+                                 ),
+                                 const SizedBox(height: 16),
 
-                                _PetDialogueCard(
+                                 _PetDialogueCard(
                                   classType: pet.classType,
                                   petMessage: !healthData.hasOnboardedBedtime
                                       ? "Chào cậu! Để mình canh giấc ngủ cho cậu tốt nhất, bình thường cậu hay lên giường lúc mấy giờ nhỉ?"
@@ -486,16 +611,112 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       // =========================================================
                       // NÚT HOÀN THÀNH NHIỆM VỤ DỰA TRÊN GỢI Ý AI
                       // =========================================================
+                      if (healthData.hasOnboardedBedtime && activeTask != null && activeTask.isFlashQuest && activeTask.expiresAt != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _FlashQuestTimerWidget(
+                            expiresAt: activeTask.expiresAt!,
+                            onExpired: () {
+                              if (mounted) {
+                                setState(() {}); // Refresh UI
+                              }
+                            },
+                          ),
+                        ),
                       if (!healthData.hasOnboardedBedtime)
                         _PetOnboardingBedtimePanel(healthData: healthData)
                       else if (!healthData.allTasksCompleted && activeTask != null)
                         ElevatedButton.icon(
-                          onPressed: () {
-                            healthData.completeAiTask(activeTask.id);
-                          },
-                          icon: const Icon(Icons.star, color: Colors.black87),
+                          onPressed: _isVerifyingTask
+                              ? null
+                              : () async {
+                                  if (activeTask.requiresImage) {
+                                    final ImagePicker picker = ImagePicker();
+                                    final XFile? photo = await picker.pickImage(
+                                      source: ImageSource.camera,
+                                      imageQuality: 50, // Nén ảnh xuống 50% tránh tràn bộ nhớ
+                                      maxWidth: 1024,   // Giới hạn độ rộng ảnh tránh tải quá nặng
+                                    );
+                                    if (photo == null) return;
+
+                                    setState(() {
+                                      _isVerifyingTask = true;
+                                    });
+
+                                    try {
+                                      final bytes = await photo.readAsBytes();
+                                      final success = healthData.isGeminiConfigured
+                                          ? await healthData.geminiService.verifyTaskWithImage(
+                                              imageBytes: bytes,
+                                              taskTitle: activeTask.title,
+                                              taskDescription: activeTask.description,
+                                            )
+                                          : true; // Nếu chưa config Gemini, mặc định cho qua để test offline
+
+                                      if (success) {
+                                        healthData.completeAiTask(activeTask.id);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('🎉 AI đã xác nhận hoàn thành: ${activeTask.title}! (+${activeTask.expReward} EXP)'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        final isFruit = activeTask.title.toLowerCase().contains('trái cây') || 
+                                                        activeTask.description.toLowerCase().contains('trái cây');
+                                        final msg = isFruit 
+                                            ? 'Chưa thấy trái cây đâu nha! Chụp lại rõ hơn đi nào! 🍎'
+                                            : 'Chưa thấy bằng chứng nhiệm vụ đâu nha! Hãy chụp lại rõ ràng hơn đi nào! 📷';
+                                        
+                                        healthData.setPetMessage(msg, state: 'Mệt mỏi');
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(msg),
+                                              backgroundColor: Colors.orange,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('🚨 Lỗi xác thực hình ảnh: $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() {
+                                          _isVerifyingTask = false;
+                                        });
+                                      }
+                                    }
+                                  } else {
+                                    healthData.completeAiTask(activeTask.id);
+                                  }
+                                },
+                          icon: _isVerifyingTask
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black87,
+                                  ),
+                                )
+                              : Icon(
+                                  activeTask.requiresImage
+                                      ? Icons.camera_alt_rounded
+                                      : Icons.star,
+                                  color: Colors.black87,
+                                ),
                           label: Text(
-                            buttonText,
+                            _isVerifyingTask ? "Đang xác thực bằng AI..." : buttonText,
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                           style: ElevatedButton.styleFrom(
@@ -2155,5 +2376,116 @@ class _PetOnboardingBedtimePanelState extends State<_PetOnboardingBedtimePanel> 
     if (mounted) {
       setState(() => _isSaving = false);
     }
+  }
+}
+
+// =========================================================
+// WIDGET ĐẾM NGƯỢC GIỜ VÀNG (FLASH QUEST)
+// =========================================================
+class _FlashQuestTimerWidget extends StatefulWidget {
+  final DateTime expiresAt;
+  final VoidCallback onExpired;
+
+  const _FlashQuestTimerWidget({
+    required this.expiresAt,
+    required this.onExpired,
+  });
+
+  @override
+  State<_FlashQuestTimerWidget> createState() => _FlashQuestTimerWidgetState();
+}
+
+class _FlashQuestTimerWidgetState extends State<_FlashQuestTimerWidget> {
+  Timer? _timer;
+  late Duration _timeLeft;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTimeLeft();
+    _startTimer();
+  }
+
+  void _calculateTimeLeft() {
+    final now = DateTime.now();
+    if (now.isAfter(widget.expiresAt)) {
+      _timeLeft = Duration.zero;
+    } else {
+      _timeLeft = widget.expiresAt.difference(now);
+    }
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _calculateTimeLeft();
+        if (_timeLeft == Duration.zero) {
+          _timer?.cancel();
+          widget.onExpired();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // Tránh lỗi memory leak & setState after dispose
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_timeLeft == Duration.zero) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.timer_off_rounded, size: 12, color: Colors.white60),
+            SizedBox(width: 4),
+            Text(
+              "Đã hết giờ vàng (EXP thường)",
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final minutes = _timeLeft.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = _timeLeft.inSeconds.remainder(60).toString().padLeft(2, '0');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department_rounded, size: 12, color: Colors.redAccent),
+          const SizedBox(width: 4),
+          Text(
+            "🔥 GIỜ VÀNG (x2 EXP/🪙): $minutes:$seconds",
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

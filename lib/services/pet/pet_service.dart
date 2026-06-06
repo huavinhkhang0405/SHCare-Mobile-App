@@ -123,7 +123,7 @@ class PetService {
   }
 
   // 2. Logic cộng EXP khi làm nhiệm vụ sức khoẻ
-  Future<void> gainExperience(String userId, int expGained) async {
+  Future<void> gainExperience(String userId, int expGained, {int goldGained = 0}) async {
     // Đảm bảo quotes đã được load trước khi xử lý logic
     await _loadQuotesIfNeeded();
 
@@ -141,6 +141,7 @@ class PetService {
           id: 'current_pet',
           userId: userId,
           currentExp: expGained,
+          goldCoins: goldGained,
         );
         transaction.set(petRef, newPet.toJson());
         return;
@@ -150,6 +151,7 @@ class PetService {
       int newExp = pet.currentExp + expGained;
       int newLevel = pet.level;
       int nextLevelExp = pet.expToNextLevel;
+      int newGold = pet.goldCoins + goldGained;
       String newState = 'Vui vẻ'; 
 
       while (newExp >= nextLevelExp) {
@@ -168,6 +170,7 @@ class PetService {
         currentExp: newExp,
         level: newLevel,
         expToNextLevel: nextLevelExp,
+        goldCoins: newGold,
         state: newState,
         message: randomMessage, // Cập nhật câu nói từ JSON vào đây
         isTaskCompleted: true, 
@@ -175,5 +178,100 @@ class PetService {
 
       transaction.update(petRef, updatedPet.toJson());
     });
+  }
+
+  // 3. Cập nhật trạng thái và tin nhắn của Pet trực tiếp
+  Future<void> updatePetState(String userId, String state, String message) async {
+    try {
+      final petRef = _db
+          .collection('users')
+          .doc(userId)
+          .collection('pets')
+          .doc('current_pet');
+      await petRef.update({
+        'state': state,
+        'message': message,
+        'is_task_completed': false,
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print("🚨 Lỗi updatePetState: $e");
+    }
+  }
+
+  // 4. Mua bùa đóng băng qua Firestore Transaction tránh lỗi Race Condition
+  Future<void> purchaseStreakFreeze(String userId) async {
+    final petRef = _db
+        .collection('users')
+        .doc(userId)
+        .collection('pets')
+        .doc('current_pet');
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(petRef);
+      if (!snapshot.exists) {
+        throw Exception('Thú cưng không tồn tại để mua bùa.');
+      }
+
+      final pet = PetModel.fromFirestore(snapshot);
+      if (pet.goldCoins < 50) {
+        throw Exception('Không đủ vàng để mua bùa đóng băng (Cần 50 🪙).');
+      }
+
+      final updatedPet = pet.copyWith(
+        goldCoins: pet.goldCoins - 50,
+        streakFreezeCount: pet.streakFreezeCount + 1,
+      );
+
+      transaction.update(petRef, updatedPet.toJson());
+    });
+  }
+
+  // 5. Cập nhật Streak và Freeze Count
+  Future<void> updateStreakAndFreeze(
+    String userId, {
+    required int newStreak,
+    required int newFreeze,
+    String? newState,
+    String? newMessage,
+  }) async {
+    try {
+      final petRef = _db
+          .collection('users')
+          .doc(userId)
+          .collection('pets')
+          .doc('current_pet');
+      
+      final Map<String, dynamic> updates = {
+        'streak_count': newStreak,
+        'streak_freeze_count': newFreeze,
+      };
+      if (newState != null) updates['state'] = newState;
+      if (newMessage != null) updates['message'] = newMessage;
+
+      await petRef.update(updates);
+    } catch (e) {
+      // ignore: avoid_print
+      print("🚨 Lỗi updateStreakAndFreeze: $e");
+    }
+  }
+
+  // 6. Lấy dữ liệu Pet một lần (không dùng Stream)
+  Future<PetModel?> getPetData(String userId) async {
+    try {
+      final doc = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('pets')
+          .doc('current_pet')
+          .get();
+      if (doc.exists) {
+        return PetModel.fromFirestore(doc);
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print("🚨 Lỗi getPetData: $e");
+    }
+    return null;
   }
 }
