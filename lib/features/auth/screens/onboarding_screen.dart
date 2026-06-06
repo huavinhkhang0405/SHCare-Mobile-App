@@ -457,6 +457,167 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  void _showHeightInputDialog() {
+    final textController = TextEditingController(text: _selectedHeight.toStringAsFixed(0));
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Nhập chiều cao',
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          content: TextField(
+            controller: textController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            autofocus: true,
+            style: const TextStyle(fontSize: 18, color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              suffixText: 'cm',
+              hintText: 'Ví dụ: 170',
+              hintStyle: TextStyle(color: AppColors.textHint),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AppColors.primary, width: 2),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Hủy',
+                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final val = double.tryParse(textController.text);
+                if (val != null && val >= 100 && val <= 220) {
+                  setState(() {
+                    _selectedHeight = val;
+                  });
+                  Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Chiều cao phải từ 100 đến 220 cm'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Xác nhận',
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showWeightInputDialog() {
+    final textController = TextEditingController(text: _selectedWeight.toStringAsFixed(1));
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Nhập cân nặng',
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          content: TextField(
+            controller: textController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            style: const TextStyle(fontSize: 18, color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              suffixText: 'kg',
+              hintText: 'Ví dụ: 65.5',
+              hintStyle: TextStyle(color: AppColors.textHint),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AppColors.primary, width: 2),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Hủy',
+                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final cleanText = textController.text.replaceAll(',', '.');
+                final val = double.tryParse(cleanText);
+                if (val != null && val >= 30 && val <= 150) {
+                  setState(() {
+                    _selectedWeight = val;
+                  });
+                  Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cân nặng phải từ 30 đến 150 kg'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Xác nhận',
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAdjustButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.primarySurface,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: AppColors.primary,
+            size: 24,
+          ),
+        ),
+      ),
+    );
+  }
+
   // 3. HEIGHT STEP
   Widget _buildHeightStep() {
     return Padding(
@@ -489,25 +650,52 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        _selectedHeight.toStringAsFixed(0),
-                        style: const TextStyle(
-                          fontSize: 72,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primary,
+                      _buildAdjustButton(
+                        icon: Icons.remove_rounded,
+                        onPressed: () {
+                          setState(() {
+                            _selectedHeight = (_selectedHeight - 1).clamp(100, 220);
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 24),
+                      GestureDetector(
+                        onTap: _showHeightInputDialog,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _selectedHeight.toStringAsFixed(0),
+                              style: const TextStyle(
+                                fontSize: 72,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dashed,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'cm',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'cm',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                        ),
+                      const SizedBox(width: 24),
+                      _buildAdjustButton(
+                        icon: Icons.add_rounded,
+                        onPressed: () {
+                          setState(() {
+                            _selectedHeight = (_selectedHeight + 1).clamp(100, 220);
+                          });
+                        },
                       ),
                     ],
                   ),
@@ -575,25 +763,52 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        _selectedWeight.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 72,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primary,
+                      _buildAdjustButton(
+                        icon: Icons.remove_rounded,
+                        onPressed: () {
+                          setState(() {
+                            _selectedWeight = (_selectedWeight - 0.5).clamp(30, 150);
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 24),
+                      GestureDetector(
+                        onTap: _showWeightInputDialog,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _selectedWeight.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 72,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dashed,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'kg',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'kg',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                        ),
+                      const SizedBox(width: 24),
+                      _buildAdjustButton(
+                        icon: Icons.add_rounded,
+                        onPressed: () {
+                          setState(() {
+                            _selectedWeight = (_selectedWeight + 0.5).clamp(30, 150);
+                          });
+                        },
                       ),
                     ],
                   ),

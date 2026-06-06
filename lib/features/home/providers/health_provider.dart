@@ -879,10 +879,7 @@ class HealthProvider extends ChangeNotifier {
 
   void _syncWaterProgress() {
     _waterLiters = (_waterLiters * 100).round() / 100;
-    _waterPercentage = ((_waterLiters / _waterGoal) * 100)
-        .round()
-        .clamp(0, 100)
-        .toInt();
+    _waterPercentage = max(0, ((_waterLiters / _waterGoal) * 100).round());
   }
 
   void _updateSymptomsFromVitals() {
@@ -917,8 +914,8 @@ class HealthProvider extends ChangeNotifier {
 
     if (result.waterLiters > 0) {
       _waterLiters += result.waterLiters;
-      if (_waterLiters > _waterGoal) {
-        _waterLiters = _waterGoal;
+      if (_waterLiters > 10.0) {
+        _waterLiters = 10.0;
       }
       _syncWaterProgress();
       await _saveWaterData();
@@ -932,8 +929,8 @@ class HealthProvider extends ChangeNotifier {
 
   void addWater() {
     _waterLiters += 0.25;
-    if (_waterLiters > _waterGoal) {
-      _waterLiters = _waterGoal;
+    if (_waterLiters > 10.0) {
+      _waterLiters = 10.0;
     }
     _syncWaterProgress();
     _saveWaterData();

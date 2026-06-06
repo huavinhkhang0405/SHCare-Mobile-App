@@ -12,6 +12,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   final MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
   );
+  bool _hasScanned = false;
 
   @override
   void dispose() {
@@ -70,12 +71,19 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         children: [
           MobileScanner(
             controller: controller,
-            onDetect: (capture) {
+            onDetect: (capture) async {
+              if (_hasScanned) return;
               final List<Barcode> barcodes = capture.barcodes;
               if (barcodes.isNotEmpty) {
                 final String? code = barcodes.first.rawValue;
                 if (code != null && code.isNotEmpty) {
-                  Navigator.pop(context, code);
+                  setState(() {
+                    _hasScanned = true;
+                  });
+                  await controller.stop();
+                  if (context.mounted) {
+                    Navigator.pop(context, code);
+                  }
                 }
               }
             },
