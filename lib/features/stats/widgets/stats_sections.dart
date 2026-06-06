@@ -6,6 +6,13 @@ import '../../../core/widgets/gif_icon.dart';
 class StatsHeader extends StatelessWidget {
   const StatsHeader({super.key});
 
+  int _getWeekOfYear() {
+    final now = DateTime.now();
+    final firstDayOfYear = DateTime(now.year, 1, 1);
+    final daysPast = now.difference(firstDayOfYear).inDays;
+    return (daysPast / 7).ceil();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -43,19 +50,19 @@ class StatsHeader extends StatelessWidget {
             border: Border.all(color: AppColors.cardBorder),
             boxShadow: AppColors.softShadow,
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GifIcon(
+              const GifIcon(
                 assetPath: AppGifIcons.calendar,
                 fallbackIcon: Icons.calendar_today_rounded,
                 size: 14,
                 fallbackColor: AppColors.primary,
               ),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text(
-                'Tuần 16',
-                style: TextStyle(
+                'Tuần ${_getWeekOfYear()}',
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
@@ -84,14 +91,19 @@ class StatsSectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           actionLabel,
           style: const TextStyle(
@@ -453,12 +465,16 @@ class StatsBodyMetricsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Thành phần cơ thể & Chuyển hóa',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  'Thành phần cơ thể & Chuyển hóa',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

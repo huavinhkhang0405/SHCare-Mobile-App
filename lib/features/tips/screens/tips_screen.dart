@@ -8,12 +8,22 @@ import '../../home/providers/health_provider.dart';
 import '../widgets/featured_tip_card.dart';
 import '../widgets/tips_sections.dart';
 
-class TipsScreen extends StatelessWidget {
+class TipsScreen extends StatefulWidget {
   const TipsScreen({super.key});
+
+  @override
+  State<TipsScreen> createState() => _TipsScreenState();
+}
+
+class _TipsScreenState extends State<TipsScreen> {
+  String _selectedCategory = 'Tất cả';
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     final healthData = context.watch<HealthProvider>();
+    
+    // Lấy tất cả tip items dựa trên chỉ số động của người dùng
     final tipItems = buildTipItems(
       steps: healthData.steps,
       goal: healthData.goal,
@@ -21,7 +31,20 @@ class TipsScreen extends StatelessWidget {
       bpm: healthData.bpm,
       energyLevel: healthData.energyLevel,
     );
-    final featuredTip = tipItems.first;
+
+    // Lọc tip items dựa trên category và tìm kiếm
+    final filteredTipItems = tipItems.where((tip) {
+      final matchesCategory = _selectedCategory == 'Tất cả' || tip.category == _selectedCategory;
+      final matchesSearch = tip.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          tip.description.toLowerCase().contains(_searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    }).toList();
+
+    // Lấy featured tip từ danh sách đã lọc (nếu trống thì lấy từ danh sách gốc)
+    final featuredTip = filteredTipItems.isNotEmpty 
+        ? filteredTipItems.first 
+        : (tipItems.isNotEmpty ? tipItems.first : null);
+
     final waterSubtitle = healthData.remainingWaterGlasses == 0
         ? 'Đủ mục tiêu'
         : 'Còn ${healthData.remainingWaterGlasses} ly';
@@ -29,8 +52,14 @@ class TipsScreen extends StatelessWidget {
         ? 'Ngủ sớm 22:00'
         : 'Giữ 22:30';
 
-    // Hiển thị tất cả nhiệm vụ AI (không lọc dismiss vì đã bỏ chức năng dismiss)
+    // Lấy và lọc nhiệm vụ AI dựa trên category và tìm kiếm
     final activeTasks = healthData.aiTasks;
+    final filteredTasks = activeTasks.where((task) {
+      final matchesCategory = _selectedCategory == 'Tất cả' || task.category == _selectedCategory;
+      final matchesSearch = task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          task.description.toLowerCase().contains(_searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    }).toList();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -42,17 +71,31 @@ class TipsScreen extends StatelessWidget {
             children: [
               const TipsHeader(),
               const SizedBox(height: 16),
-              const TipsSearchBar(),
-              const SizedBox(height: 16),
-              FeaturedTipCard(
-                title: featuredTip.title,
-                description: featuredTip.description,
-                ctaLabel: 'Làm ngay',
-                gifAssetPath: featuredTip.gifAssetPath,
-                icon: featuredTip.icon,
+              TipsSearchBar(
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
               ),
+              const SizedBox(height: 16),
+              if (featuredTip != null)
+                FeaturedTipCard(
+                  title: featuredTip.title,
+                  description: featuredTip.description,
+                  ctaLabel: 'Làm ngay',
+                  gifAssetPath: featuredTip.gifAssetPath,
+                  icon: featuredTip.icon,
+                ),
               const SizedBox(height: 18),
-              const TipsCategoryChips(),
+              TipsCategoryChips(
+                selectedCategory: _selectedCategory,
+                onCategorySelected: (cat) {
+                  setState(() {
+                    _selectedCategory = cat;
+                  });
+                },
+              ),
 
               // ─── AI TASKS SECTION ─────────────────────────────
               const SizedBox(height: 20),
@@ -103,7 +146,6 @@ class TipsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // Hiển thị số nhiệm vụ đã hoàn thành / tổng
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -130,7 +172,6 @@ class TipsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
 
-              // Error message
               if (healthData.aiTasksError != null)
                 Container(
                   width: double.infinity,
@@ -164,14 +205,12 @@ class TipsScreen extends StatelessWidget {
                   ),
                 ),
 
-              // Loading skeleton
               if (healthData.isLoadingAiTasks && activeTasks.isEmpty)
                 ..._buildLoadingSkeletons()
-              // AI Task Cards
-              else if (activeTasks.isEmpty)
+              else if (filteredTasks.isEmpty)
                 _buildEmptyState()
               else
-                ...activeTasks.map(
+                ...filteredTasks.map(
                   (task) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _AiTaskCard(
@@ -192,12 +231,23 @@ class TipsScreen extends StatelessWidget {
                 actionLabel: 'Cập nhật mới',
               ),
               const SizedBox(height: 10),
-              ...tipItems.map(
-                (tip) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TipActionCard(item: tip),
+              if (filteredTipItems.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Không tìm thấy gợi ý phù hợp.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                )
+              else
+                ...filteredTipItems.map(
+                  (tip) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: TipActionCard(item: tip),
+                  ),
                 ),
-              ),
               const SizedBox(height: 8),
               const TipsSectionHeader(
                 title: 'Thói quen nhỏ',
@@ -274,26 +324,28 @@ class TipsScreen extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: AppColors.softShadow,
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.auto_awesome_rounded,
             size: 36,
             color: AppColors.primary,
           ),
-          SizedBox(height: 10),
-          Text(
-            'Đang chờ AI tạo nhiệm vụ...',
+          const SizedBox(height: 10),
+          const Text(
+            'Không tìm thấy nhiệm vụ nào.',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            '3 nhiệm vụ sẽ được tạo tự động mỗi ngày lúc 00:00.',
-            style: TextStyle(
+            _searchQuery.isNotEmpty 
+                ? 'Thử tìm kiếm với từ khóa khác.'
+                : 'Thử chọn danh mục khác hoặc chờ AI tạo nhiệm vụ mới.',
+            style: const TextStyle(
               fontSize: 12,
               color: AppColors.textHint,
             ),
@@ -522,9 +574,9 @@ class _AiTaskCard extends StatelessWidget {
                           else
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(8),

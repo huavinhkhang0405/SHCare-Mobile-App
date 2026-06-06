@@ -4,6 +4,16 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import '../../../models/pet_model.dart';
 import '../../../models/user_model.dart';
 
+enum FriendRequestResult {
+  sent,
+  alreadyFriends,
+  alreadyRequested,
+  autoAccepted,
+  selfConnect,
+  notFound,
+  error,
+}
+
 class SocialService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -319,6 +329,157 @@ class SocialService {
           .delete();
     } catch (e) {
       print('🚨 [SocialService] Lỗi khi xóa Poke: $e');
+    }
+  }
+
+  /// Gửi yêu cầu kết bạn bằng mã code
+  Future<FriendRequestResult> sendFriendRequest(String code, String currentUserId) async {
+    if (code.trim().isEmpty || currentUserId.isEmpty) return FriendRequestResult.notFound;
+    final cleanCode = code.trim().toUpperCase();
+
+    try {
+      // 1. Tìm người dùng có mã kết bạn trùng khớp
+      final querySnapshot = await _db
+          .collection('users')
+          .where('friend_code', isEqualTo: cleanCode)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return FriendRequestResult.notFound; // Không tìm thấy mã kết bạn
+      }
+
+      final friendDoc = querySnapshot.docs.first;
+      final friendId = friendDoc.id;
+
+      if (friendId == currentUserId) {
+        return FriendRequestResult.selfConnect; // Không thể kết bạn với chính mình
+      }
+
+      // 2. Kiểm tra thông tin của tôi
+      final myUserDoc = await _db.collection('users').doc(currentUserId).get();
+      if (!myUserDoc.exists) return FriendRequestResult.error;
+
+      final myUser = UserModel.fromFirestore(myUserDoc);
+
+      // Nếu đã là bạn bè, trả về alreadyFriends
+      if (myUser.friends.contains(friendId)) {
+        return FriendRequestResult.alreadyFriends;
+      }
+
+      // 3. Kiểm tra xem đã gửi yêu cầu kết bạn trước đó chưa (A gửi cho B)
+      final outgoingDoc = await _db
+          .collection('users')
+          .doc(friendId)
+          .collection('friend_requests')
+          .doc(currentUserId)
+          .get();
+
+      if (outgoingDoc.exists) {
+        return FriendRequestResult.alreadyRequested;
+      }
+
+      // 4. Kiểm tra xem đối phương có gửi yêu cầu kết bạn cho mình trước đó chưa (B gửi cho A)
+      final incomingDoc = await _db
+          .collection('users')
+          .doc(currentUserId)
+          .collection('friend_requests')
+          .doc(friendId)
+          .get();
+
+      if (incomingDoc.exists) {
+        // Tự động kết bạn hai chiều (Auto-Accept)
+        await _db.runTransaction((transaction) async {
+          // Thêm bạn bè hai bên
+          transaction.update(_db.collection('users').doc(currentUserId), {
+            'friends': FieldValue.arrayUnion([friendId])
+          });
+          transaction.update(_db.collection('users').doc(friendId), {
+            'friends': FieldValue.arrayUnion([currentUserId])
+          });
+          // Xóa yêu cầu kết bạn cũ
+          transaction.delete(_db
+              .collection('users')
+              .doc(currentUserId)
+              .collection('friend_requests')
+              .doc(friendId));
+        });
+        return FriendRequestResult.autoAccepted;
+      }
+
+      // 5. Nếu chưa có kết nối nào, tạo yêu cầu kết bạn mới
+      await _db
+          .collection('users')
+          .doc(friendId)
+          .collection('friend_requests')
+          .doc(currentUserId)
+          .set({
+        'sender_id': currentUserId,
+        'sender_name': myUser.name,
+        'sender_avatar': myUser.avatarUrl,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      return FriendRequestResult.sent;
+    } catch (e) {
+      print('🚨 [SocialService] Lỗi khi gửi yêu cầu kết bạn: $e');
+      return FriendRequestResult.error;
+    }
+  }
+
+  /// Lấy danh sách yêu cầu kết bạn realtime
+  Stream<QuerySnapshot> streamFriendRequests(String userId) {
+    if (userId.isEmpty) return const Stream.empty();
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('friend_requests')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  /// Chấp nhận yêu cầu kết bạn (Thêm bạn bè 2 chiều và xóa yêu cầu)
+  Future<bool> acceptFriendRequest(String currentUserId, String requesterId) async {
+    if (currentUserId.isEmpty || requesterId.isEmpty) return false;
+
+    try {
+      await _db.runTransaction((transaction) async {
+        // Thêm bạn bè hai bên
+        transaction.update(_db.collection('users').doc(currentUserId), {
+          'friends': FieldValue.arrayUnion([requesterId])
+        });
+        transaction.update(_db.collection('users').doc(requesterId), {
+          'friends': FieldValue.arrayUnion([currentUserId])
+        });
+        // Xóa yêu cầu kết bạn
+        transaction.delete(_db
+            .collection('users')
+            .doc(currentUserId)
+            .collection('friend_requests')
+            .doc(requesterId));
+      });
+      return true;
+    } catch (e) {
+      print('🚨 [SocialService] Lỗi khi chấp nhận kết bạn: $e');
+      return false;
+    }
+  }
+
+  /// Từ chối yêu cầu kết bạn (Xóa yêu cầu)
+  Future<bool> declineFriendRequest(String currentUserId, String requesterId) async {
+    if (currentUserId.isEmpty || requesterId.isEmpty) return false;
+
+    try {
+      await _db
+          .collection('users')
+          .doc(currentUserId)
+          .collection('friend_requests')
+          .doc(requesterId)
+          .delete();
+      return true;
+    } catch (e) {
+      print('🚨 [SocialService] Lỗi khi từ chối kết bạn: $e');
+      return false;
     }
   }
 }

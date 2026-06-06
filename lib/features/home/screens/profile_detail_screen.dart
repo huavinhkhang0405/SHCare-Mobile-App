@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../models/user_model.dart';
+import '../../../core/widgets/user_avatar.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -21,6 +24,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   String _targetWakeTime = '07:00';
   String _activityLevel = 'Vừa phải (3-5 ngày/tuần)';
   bool _isEditing = false;
+  bool _isAvatarLoading = false;
 
   @override
   void initState() {
@@ -213,6 +217,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   Widget _buildHeaderCard(dynamic user) {
+    final auth = context.read<AuthProvider>();
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -223,19 +228,53 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: const BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.person_rounded,
-                color: Colors.white,
-                size: 36,
-              ),
+          GestureDetector(
+            onTap: _isAvatarLoading ? null : () => _showAvatarPicker(context, auth),
+            child: Stack(
+              children: [
+                UserAvatar(
+                  avatarUrl: user.avatarUrl,
+                  size: 68,
+                  borderRadius: 34,
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2),
+                ),
+                if (_isAvatarLoading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 18),
@@ -264,6 +303,52 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showAvatarPicker(BuildContext parentContext, AuthProvider auth) {
+    showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return _AvatarPickerSheet(
+          currentAvatarUrl: auth.currentUser?.avatarUrl,
+          onAvatarSelected: (newUrl) async {
+            Navigator.of(sheetContext).pop();
+            
+            setState(() {
+              _isAvatarLoading = true;
+            });
+
+            final success = await auth.updateAvatar(newUrl);
+
+            if (parentContext.mounted && mounted) {
+              setState(() {
+                _isAvatarLoading = false;
+              });
+              
+              if (success) {
+                ScaffoldMessenger.of(parentContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cập nhật ảnh đại diện thành công!'),
+                    backgroundColor: AppColors.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(parentContext).showSnackBar(
+                  SnackBar(
+                    content: Text(auth.errorMessage ?? 'Không thể cập nhật ảnh đại diện.'),
+                    backgroundColor: AppColors.error,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
+        );
+      },
     );
   }
 
@@ -819,6 +904,202 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AvatarPickerSheet extends StatelessWidget {
+  final String? currentAvatarUrl;
+  final Function(String) onAvatarSelected;
+
+  const _AvatarPickerSheet({
+    required this.currentAvatarUrl,
+    required this.onAvatarSelected,
+  });
+
+  Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 256,
+        maxHeight: 256,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final base64String = base64Encode(bytes);
+        onAvatarSelected('data:image/jpeg;base64,$base64String');
+      }
+    } catch (e) {
+      debugPrint('Lỗi chọn ảnh: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể tải hoặc xử lý ảnh.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> emojis = [
+      '👤', '👦', '👧', '👑', '⚔️', '🛡️', '🧪', '🦁', '🐉', '🦄', '🏃', '🧗', '🧘', '⚡', '🔥', '❤️'
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.scaffoldBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle & Title
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.cardBorder,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Chọn ảnh đại diện',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ─── TỰ CHỌN ẢNH ───
+            const Text(
+              'Từ thiết bị của bạn',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickImage(context, ImageSource.camera),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorder),
+                        boxShadow: AppColors.softShadow,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.camera_alt_rounded, color: AppColors.primary, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'Chụp ảnh mới',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickImage(context, ImageSource.gallery),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorder),
+                        boxShadow: AppColors.softShadow,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.photo_library_rounded, color: AppColors.primary, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'Thư viện ảnh',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+
+            // ─── EMOJIS ───
+            const Text(
+              'Biểu tượng Emoji',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 6,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: emojis.length,
+              itemBuilder: (context, index) {
+                final emoji = emojis[index];
+                final isSelected = currentAvatarUrl == emoji;
+                return GestureDetector(
+                  onTap: () => onAvatarSelected(emoji),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.cardBorder,
+                        width: isSelected ? 2.5 : 1,
+                      ),
+                      boxShadow: AppColors.softShadow,
+                    ),
+                    child: Center(
+                      child: Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
     );
   }
 }

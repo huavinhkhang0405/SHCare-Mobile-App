@@ -377,6 +377,7 @@ class AuthProvider extends ChangeNotifier {
     String? targetBedtime,
     String? targetWakeTime,
     String? activityLevel,
+    String? avatarUrl,
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -412,15 +413,64 @@ class AuthProvider extends ChangeNotifier {
         targetBedtime: targetBedtime ?? baseModel.targetBedtime,
         targetWakeTime: targetWakeTime ?? baseModel.targetWakeTime,
         activityLevel: activityLevel ?? baseModel.activityLevel,
+        avatarUrl: avatarUrl ?? baseModel.avatarUrl,
       );
 
-      await _userService.saveUser(updatedModel);
+      // Cập nhật local state trước để UI phản hồi lập tức
       _currentUserModel = updatedModel;
-      _setLoading(false);
       notifyListeners();
+
+      // Lưu lên Firestore với timeout 1 giây (nếu offline, Firestore sẽ tự động đồng bộ sau)
+      try {
+        await _userService.saveUser(updatedModel).timeout(const Duration(seconds: 1));
+      } catch (e) {
+        debugPrint('Firestore lưu offline/timeout: $e');
+      }
+
+      _setLoading(false);
       return true;
     } catch (e) {
       _errorMessage = 'Lỗi cập nhật thông tin: $e';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Cập nhật riêng ảnh đại diện lên Firestore
+  Future<bool> updateAvatar(String avatarUrl) async {
+    _setLoading(true);
+    _errorMessage = null;
+    try {
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      if (firebaseUser == null) {
+        _errorMessage = 'Không tìm thấy thông tin đăng nhập.';
+        _setLoading(false);
+        return false;
+      }
+
+      if (_currentUserModel == null) {
+        _errorMessage = 'Thông tin người dùng chưa được tải.';
+        _setLoading(false);
+        return false;
+      }
+
+      final updatedModel = _currentUserModel!.copyWith(avatarUrl: avatarUrl);
+      
+      // Cập nhật local state trước để UI phản hồi lập tức
+      _currentUserModel = updatedModel;
+      notifyListeners();
+
+      // Lưu lên Firestore với timeout 1 giây
+      try {
+        await _userService.saveUser(updatedModel).timeout(const Duration(seconds: 1));
+      } catch (e) {
+        debugPrint('Firestore lưu offline/timeout: $e');
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi cập nhật ảnh đại diện: $e';
       _setLoading(false);
       return false;
     }
