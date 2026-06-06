@@ -9,7 +9,9 @@ import '../../home/screens/home_screen.dart';
 import '../../home/widgets/music_play_button.dart';
 import '../../stats/screens/stats_screen.dart';
 import '../../tips/screens/tips_screen.dart';
+import '../../home/providers/health_provider.dart';
 import '../../journal/screens/journal_screen.dart';
+import '../../social/screens/social_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -50,6 +52,7 @@ class _MainScreenState extends State<MainScreen> {
     const StatsScreen(),
     const TipsScreen(),
     const JournalScreen(),
+    const SocialScreen(),
   ];
 
   Future<void> _restoreMusicButtonPosition() async {
@@ -168,6 +171,18 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Lắng nghe tín hiệu chọc ghẹo từ bạn bè realtime
+    final healthProvider = context.watch<HealthProvider>();
+    final pokeMessage = healthProvider.latestPokeMessage;
+    if (pokeMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (healthProvider.latestPokeMessage != null) {
+          _showPokeAlert(context, healthProvider.latestPokeMessage!);
+          healthProvider.clearLatestPokeMessage();
+        }
+      });
+    }
+
     return Scaffold(
       // 1. Phần thân sẽ hiển thị màn hình dựa theo index hiện tại
       body: LayoutBuilder(
@@ -295,10 +310,111 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 label: 'Nhật ký',
               ),
+              NavigationDestination(
+                icon: GifIcon(
+                  assetPath: AppGifIcons.profile,
+                  fallbackIcon: Icons.group_outlined,
+                ),
+                selectedIcon: GifIcon(
+                  assetPath: AppGifIcons.profile,
+                  fallbackIcon: Icons.group,
+                ),
+                label: 'Cộng đồng',
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  void _showPokeAlert(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon chọc
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primarySurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.front_hand_rounded,
+                    color: AppColors.primary,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Bị chọc ghẹo! 😂',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tập luyện thôi! 🔥',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

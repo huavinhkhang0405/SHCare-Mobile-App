@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firebase/user_service.dart';
 import '../services/pet/pet_service.dart';
+import '../services/social/social_service.dart';
 
 /// Quản lý trạng thái xác thực người dùng sử dụng Firebase Auth.
 /// Hỗ trợ đăng nhập bằng email/password, Google, Facebook.
@@ -42,12 +43,26 @@ class AuthProvider extends ChangeNotifier {
             email: firebaseUser.email ?? '',
             name: firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'User',
           );
+          // Tự sinh mã kết bạn độc nhất nếu chưa có
+          final code = await SocialService().generateUniqueFriendCode(_currentUserModel!.name);
+          _currentUserModel = _currentUserModel!.copyWith(friendCode: code);
+          await _userService.saveUser(_currentUserModel!);
+        } else if (_currentUserModel!.friendCode.isEmpty || 
+                   !RegExp(r'^[A-Z0-9]+$').hasMatch(_currentUserModel!.friendCode)) {
+          final code = await SocialService().generateUniqueFriendCode(_currentUserModel!.name);
+          _currentUserModel = _currentUserModel!.copyWith(friendCode: code);
+          await _userService.saveUser(_currentUserModel!);
         }
       } catch (e) {
         debugPrint('Lỗi tải thông tin user từ Firestore: $e');
       }
       notifyListeners();
     }
+  }
+
+  /// Nạp lại thông tin người dùng
+  Future<void> reloadUserData() async {
+    await loadCurrentUserModel();
   }
 
   /// Đăng nhập bằng email / password
@@ -119,10 +134,12 @@ class AuthProvider extends ChangeNotifier {
         await credential.user!.sendEmailVerification();
         
         // Tạo User Document ban đầu trên Firestore (chưa có chiều cao, cân nặng...)
+        final code = await SocialService().generateUniqueFriendCode(name.trim());
         final userModel = UserModel(
           id: credential.user!.uid,
           email: email.trim(),
           name: name.trim(),
+          friendCode: code,
         );
         await _userService.saveUser(userModel);
         
@@ -164,10 +181,13 @@ class AuthProvider extends ChangeNotifier {
         // Kiểm tra xem đã có document trên Firestore chưa
         final exists = await _userService.getUser(credential.user!.uid);
         if (exists == null) {
+          final displayName = credential.user!.displayName ?? credential.user!.email?.split('@').first ?? 'User';
+          final code = await SocialService().generateUniqueFriendCode(displayName);
           final userModel = UserModel(
             id: credential.user!.uid,
             email: credential.user!.email ?? '',
-            name: credential.user!.displayName ?? credential.user!.email?.split('@').first ?? 'User',
+            name: displayName,
+            friendCode: code,
           );
           await _userService.saveUser(userModel);
           _currentUserModel = userModel;
@@ -203,18 +223,37 @@ class AuthProvider extends ChangeNotifier {
     try {
       final credential = await _authService.signInWithFacebook();
       if (credential != null && credential.user != null) {
+        // Trích xuất Facebook ID từ providerData
+        String? facebookId;
+        for (final profile in credential.user!.providerData) {
+          if (profile.providerId == 'facebook.com') {
+            facebookId = profile.uid;
+            break;
+          }
+        }
+
         // Kiểm tra xem đã có document trên Firestore chưa
         final exists = await _userService.getUser(credential.user!.uid);
         if (exists == null) {
+          final displayName = credential.user!.displayName ?? credential.user!.email?.split('@').first ?? 'User';
+          final code = await SocialService().generateUniqueFriendCode(displayName);
           final userModel = UserModel(
             id: credential.user!.uid,
             email: credential.user!.email ?? '',
-            name: credential.user!.displayName ?? credential.user!.email?.split('@').first ?? 'User',
+            name: displayName,
+            facebookId: facebookId,
+            friendCode: code,
           );
           await _userService.saveUser(userModel);
           _currentUserModel = userModel;
         } else {
-          _currentUserModel = exists;
+          if (exists.facebookId != facebookId) {
+            final updatedModel = exists.copyWith(facebookId: facebookId);
+            await _userService.saveUser(updatedModel);
+            _currentUserModel = updatedModel;
+          } else {
+            _currentUserModel = exists;
+          }
         }
         // Đảm bảo pet collection tồn tại cho user (tạo mới nếu chưa có)
         await PetService().initializePet(credential.user!.uid);
@@ -255,19 +294,24 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      final updatedModel = UserModel(
+      UserModel baseModel = _currentUserModel ?? UserModel(
         id: firebaseUser.uid,
-        email: firebaseUser.email ?? _currentUserModel?.email ?? '',
-        name: firebaseUser.displayName ?? _currentUserModel?.name ?? 'User',
+        email: firebaseUser.email ?? '',
+        name: firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'User',
+      );
+      
+      if (baseModel.friendCode.isEmpty || !RegExp(r'^[A-Z0-9]+$').hasMatch(baseModel.friendCode)) {
+        final code = await SocialService().generateUniqueFriendCode(baseModel.name);
+        baseModel = baseModel.copyWith(friendCode: code);
+      }
+
+      final updatedModel = baseModel.copyWith(
         birthYear: birthYear,
         gender: gender,
         heightCm: heightCm,
         weightKg: weightKg,
         isOnboarded: true,
-        targetBedtime: _currentUserModel?.targetBedtime ?? '23:00',
-        targetWakeTime: _currentUserModel?.targetWakeTime ?? '07:00',
         activityLevel: activityLevel,
-        createdAt: _currentUserModel?.createdAt,
       );
 
       await _userService.saveUser(updatedModel);
@@ -295,19 +339,19 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      final updatedModel = UserModel(
+      UserModel baseModel = _currentUserModel ?? UserModel(
         id: firebaseUser.uid,
-        email: firebaseUser.email ?? _currentUserModel?.email ?? '',
-        name: firebaseUser.displayName ?? _currentUserModel?.name ?? 'User',
-        birthYear: _currentUserModel?.birthYear,
-        gender: _currentUserModel?.gender,
-        heightCm: _currentUserModel?.heightCm,
-        weightKg: _currentUserModel?.weightKg,
+        email: firebaseUser.email ?? '',
+        name: firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'User',
+      );
+      
+      if (baseModel.friendCode.isEmpty || !RegExp(r'^[A-Z0-9]+$').hasMatch(baseModel.friendCode)) {
+        final code = await SocialService().generateUniqueFriendCode(baseModel.name);
+        baseModel = baseModel.copyWith(friendCode: code);
+      }
+
+      final updatedModel = baseModel.copyWith(
         isOnboarded: true,
-        targetBedtime: _currentUserModel?.targetBedtime ?? '23:00',
-        targetWakeTime: _currentUserModel?.targetWakeTime ?? '07:00',
-        activityLevel: _currentUserModel?.activityLevel ?? 'Vừa phải',
-        createdAt: _currentUserModel?.createdAt,
       );
 
       await _userService.saveUser(updatedModel);
@@ -348,20 +392,28 @@ class AuthProvider extends ChangeNotifier {
       // Cập nhật tên hiển thị trên Firebase Auth
       await firebaseUser.updateDisplayName(name);
 
-      final updatedModel = UserModel(
+      UserModel baseModel = _currentUserModel ?? UserModel(
         id: firebaseUser.uid,
-        email: firebaseUser.email ?? _currentUserModel?.email ?? '',
+        email: firebaseUser.email ?? '',
+        name: name,
+      );
+      
+      if (baseModel.friendCode.isEmpty || !RegExp(r'^[A-Z0-9]+$').hasMatch(baseModel.friendCode)) {
+        final code = await SocialService().generateUniqueFriendCode(name);
+        baseModel = baseModel.copyWith(friendCode: code);
+      }
+
+      final updatedModel = baseModel.copyWith(
         name: name,
         birthYear: birthYear,
         gender: gender,
         heightCm: heightCm,
         weightKg: weightKg,
         isOnboarded: true,
-        targetBedtime: targetBedtime ?? _currentUserModel?.targetBedtime ?? '23:00',
-        targetWakeTime: targetWakeTime ?? _currentUserModel?.targetWakeTime ?? '07:00',
-        activityLevel: activityLevel ?? _currentUserModel?.activityLevel ?? 'Vừa phải',
-        avatarUrl: avatarUrl ?? _currentUserModel?.avatarUrl,
-        createdAt: _currentUserModel?.createdAt,
+        targetBedtime: targetBedtime ?? baseModel.targetBedtime,
+        targetWakeTime: targetWakeTime ?? baseModel.targetWakeTime,
+        activityLevel: activityLevel ?? baseModel.activityLevel,
+        avatarUrl: avatarUrl ?? baseModel.avatarUrl,
       );
 
       // Cập nhật local state trước để UI phản hồi lập tức
@@ -437,6 +489,40 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = null;
       notifyListeners();
+    }
+  }
+
+  /// Gửi email đặt lại mật khẩu
+  Future<bool> resetPassword(String email) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      if (email.isEmpty) {
+        _errorMessage = 'Vui lòng nhập email';
+        _setLoading(false);
+        return false;
+      }
+
+      await _authService.sendPasswordResetEmail(email);
+      _setLoading(false);
+      return true;
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        _errorMessage = 'Tài khoản email này chưa được đăng ký.';
+      } else if (e.code == 'invalid-email') {
+        _errorMessage = 'Định dạng email không hợp lệ.';
+      } else if (e.code == 'too-many-requests') {
+        _errorMessage = 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.';
+      } else {
+        _errorMessage = e.message ?? 'Không thể gửi email đặt lại mật khẩu.';
+      }
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      _errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
+      _setLoading(false);
+      return false;
     }
   }
 

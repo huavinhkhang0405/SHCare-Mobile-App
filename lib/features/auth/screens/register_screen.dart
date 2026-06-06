@@ -5,6 +5,18 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 
+/* =========================================================
+   FILE: register_screen.dart
+
+   Vai trò:
+   - Màn hình đăng ký tài khoản mới
+   - UI Premium đồng bộ với Login screen
+   - Password strength indicator realtime
+   - Gradient header, glassmorphism inputs
+
+   Redesign v2 — Premium Glassmorphism style
+   ========================================================= */
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -44,6 +56,9 @@ class _RegisterScreenState extends State<RegisterScreen>
       curve: Curves.easeOutCubic,
     ));
     _animController.forward();
+
+    // Listen to password changes for strength indicator
+    _passwordController.addListener(() => setState(() {}));
   }
 
   @override
@@ -55,6 +70,37 @@ class _RegisterScreenState extends State<RegisterScreen>
     _animController.dispose();
     super.dispose();
   }
+
+  // ─── Password Strength Logic ──────────────────────────────
+
+  /// Trả về (strength 0.0-1.0, label, color)
+  ({double value, String label, Color color}) _getPasswordStrength() {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      return (value: 0.0, label: '', color: Colors.transparent);
+    }
+
+    int score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 8) score++;
+    if (RegExp(r'[A-Z]').hasMatch(password)) score++;
+    if (RegExp(r'[0-9]').hasMatch(password)) score++;
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) score++;
+
+    if (score <= 1) {
+      return (value: 0.2, label: 'Yếu', color: AppColors.error);
+    } else if (score <= 2) {
+      return (value: 0.4, label: 'Trung bình', color: AppColors.warning);
+    } else if (score <= 3) {
+      return (value: 0.6, label: 'Khá', color: const Color(0xFFF59E0B));
+    } else if (score <= 4) {
+      return (value: 0.8, label: 'Mạnh', color: AppColors.primary);
+    } else {
+      return (value: 1.0, label: 'Rất mạnh', color: AppColors.success);
+    }
+  }
+
+  // ─── Business Logic (giữ nguyên) ─────────────────────────
 
   Future<void> _handleRegister() async {
     final auth = context.read<AuthProvider>();
@@ -84,7 +130,9 @@ class _RegisterScreenState extends State<RegisterScreen>
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.'),
+          content: Text(
+            'Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.',
+          ),
           backgroundColor: AppColors.success,
           duration: Duration(seconds: 6),
         ),
@@ -117,413 +165,362 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  BUILD
+  // ═══════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: Stack(
-        children: [
-          // ─── Background decorative elements ───
-          const _BackgroundDecoration(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AppColors.scaffoldBg,
+        child: Stack(
+          children: [
+            // ─── Gradient header (smaller for register) ───
+            _GradientHeader(height: screenHeight * 0.28),
 
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: FadeTransition(
-                opacity: _fadeAnim,
-                child: SlideTransition(
-                  position: _slideAnim,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: screenHeight * 0.03),
-
-                      // ─── Back button ───
-                      _BackButton(
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // ─── Header ───
-                      const _BrandHeader(),
-
-                      const SizedBox(height: 28),
-
-                      Text(
-                        'Tạo tài khoản mới',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineLarge
-                            ?.copyWith(letterSpacing: -0.5),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Bắt đầu hành trình chăm sóc sức khỏe cùng SHCare',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // ─── Error message ───
-                      if (auth.errorMessage != null) ...[
-                        _ErrorBanner(message: auth.errorMessage!),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // ─── Name field ───
-                      const _InputLabel(label: 'Họ và tên'),
-                      const SizedBox(height: 8),
-                      _StyledTextField(
-                        controller: _nameController,
-                        hintText: 'Nguyễn Văn A',
-                        prefixIcon: Icons.person_outline_rounded,
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // ─── Email field ───
-                      const _InputLabel(label: 'Email'),
-                      const SizedBox(height: 8),
-                      _StyledTextField(
-                        controller: _emailController,
-                        hintText: 'example@email.com',
-                        prefixIcon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // ─── Password field ───
-                      const _InputLabel(label: 'Mật khẩu'),
-                      const SizedBox(height: 8),
-                      _StyledTextField(
-                        controller: _passwordController,
-                        hintText: 'Ít nhất 6 ký tự',
-                        prefixIcon: Icons.lock_outline_rounded,
-                        obscureText: _obscurePassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            color: AppColors.textHint,
-                            size: 20,
+            // ─── Content ───
+            SafeArea(
+              child: SingleChildScrollView(
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: Column(
+                      children: [
+                        // ─── Top bar ───
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
                           ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // ─── Confirm password ───
-                      const _InputLabel(label: 'Xác nhận mật khẩu'),
-                      const SizedBox(height: 8),
-                      _StyledTextField(
-                        controller: _confirmPasswordController,
-                        hintText: 'Nhập lại mật khẩu',
-                        prefixIcon: Icons.lock_outline_rounded,
-                        obscureText: _obscureConfirm,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureConfirm
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            color: AppColors.textHint,
-                            size: 20,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscureConfirm = !_obscureConfirm,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // ─── Terms checkbox ───
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: Checkbox(
-                              value: _agreedToTerms,
-                              onChanged: (v) =>
-                                  setState(() => _agreedToTerms = v ?? false),
-                              activeColor: AppColors.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                () => _agreedToTerms = !_agreedToTerms,
-                              ),
-                              child: RichText(
-                                text: const TextSpan(
-                                  text: 'Tôi đồng ý với ',
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13,
-                                    height: 1.4,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: 'Điều khoản sử dụng',
-                                      style: TextStyle(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    TextSpan(text: ' và '),
-                                    TextSpan(
-                                      text: 'Chính sách bảo mật',
-                                      style: TextStyle(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                          child: Row(
+                            children: [
+                              _buildBackButton(),
+                              const Spacer(),
+                              // Logo small
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.2),
+                                      blurRadius: 10,
                                     ),
                                   ],
                                 ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // ─── Register button ───
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: FilledButton(
-                          onPressed: auth.isLoading ? null : _handleRegister,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppColors.radiusMd,
-                              ),
-                            ),
-                          ),
-                          child: auth.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : const Text(
-                                  'Đăng ký',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                child: ClipOval(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Image.asset(
+                                      'assets/images/logo.jpg',
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // ─── Divider ───
-                      const _OrDivider(),
-
-                      const SizedBox(height: 24),
-
-                      // ─── Social register buttons ───
-                      _SocialLoginButton(
-                        onTap: auth.isLoading ? null : _handleGoogleRegister,
-                        icon: _GoogleIcon(),
-                        label: 'Đăng ký với Google',
-                      ),
-                      const SizedBox(height: 14),
-                      _SocialLoginButton(
-                        onTap: auth.isLoading ? null : _handleFacebookRegister,
-                        icon: const Icon(
-                          Icons.facebook_rounded,
-                          color: Color(0xFF1877F2),
-                          size: 24,
-                        ),
-                        label: 'Đăng ký với Facebook',
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // ─── Login link ───
-                      Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              'Đã có tài khoản? ',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 14,
                               ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                auth.clearError();
-                                Navigator.of(context).pop();
-                              },
-                              child: const Text(
-                                'Đăng nhập',
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: screenHeight * 0.01),
+
+                        // ─── Header title ───
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tạo tài khoản',
                                 style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  fontFamily: 'PlusJakartaSans',
                                 ),
                               ),
-                            ),
-                          ],
+                              SizedBox(height: 6),
+                              Text(
+                                'Bắt đầu hành trình chăm sóc sức khỏe',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 32),
-                    ],
+                        SizedBox(height: screenHeight * 0.03),
+
+                        // ─── Form card ───
+                        _buildFormCard(auth),
+
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  BACK BUTTON
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildBackButton() {
+    return GestureDetector(
+      onTap: () {
+        context.read<AuthProvider>().clearError();
+        Navigator.of(context).pop();
+      },
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 18,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  FORM CARD
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildFormCard(AuthProvider auth) {
+    final strength = _getPasswordStrength();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 30,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ─── Error message ───
+          if (auth.errorMessage != null) ...[
+            _ErrorBanner(message: auth.errorMessage!),
+            const SizedBox(height: 16),
+          ],
+
+          // ─── Name field ───
+          _buildInputLabel('Họ và tên'),
+          const SizedBox(height: 8),
+          _PremiumTextField(
+            controller: _nameController,
+            hintText: 'Nguyễn Văn A',
+            prefixIconData: Icons.person_outline_rounded,
+          ),
+
+          const SizedBox(height: 18),
+
+          // ─── Email field ───
+          _buildInputLabel('Email'),
+          const SizedBox(height: 8),
+          _PremiumTextField(
+            controller: _emailController,
+            hintText: 'example@email.com',
+            prefixIconData: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+          ),
+
+          const SizedBox(height: 18),
+
+          // ─── Password field ───
+          _buildInputLabel('Mật khẩu'),
+          const SizedBox(height: 8),
+          _PremiumTextField(
+            controller: _passwordController,
+            hintText: 'Ít nhất 6 ký tự',
+            prefixIconData: Icons.lock_outline_rounded,
+            obscureText: _obscurePassword,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: AppColors.textHint,
+                size: 20,
+              ),
+              onPressed: () => setState(
+                () => _obscurePassword = !_obscurePassword,
+              ),
+            ),
+          ),
+
+          // ─── Password strength indicator ───
+          if (_passwordController.text.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildPasswordStrengthBar(strength),
+          ],
+
+          const SizedBox(height: 18),
+
+          // ─── Confirm password ───
+          _buildInputLabel('Xác nhận mật khẩu'),
+          const SizedBox(height: 8),
+          _PremiumTextField(
+            controller: _confirmPasswordController,
+            hintText: 'Nhập lại mật khẩu',
+            prefixIconData: Icons.lock_outline_rounded,
+            obscureText: _obscureConfirm,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: AppColors.textHint,
+                size: 20,
+              ),
+              onPressed: () => setState(
+                () => _obscureConfirm = !_obscureConfirm,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ─── Terms checkbox ───
+          _buildTermsCheckbox(),
+
+          const SizedBox(height: 24),
+
+          // ─── Register button (gradient) ───
+          _GradientButton(
+            onPressed: auth.isLoading ? null : _handleRegister,
+            isLoading: auth.isLoading,
+            label: 'Tạo tài khoản',
+          ),
+
+          const SizedBox(height: 24),
+
+          // ─── Divider ───
+          const _OrDivider(),
+
+          const SizedBox(height: 20),
+
+          // ─── Social register buttons ───
+          _SocialButton(
+            onTap: auth.isLoading ? null : _handleGoogleRegister,
+            icon: _GoogleIcon(),
+            label: 'Đăng ký với Google',
+          ),
+          const SizedBox(height: 12),
+          _SocialButton(
+            onTap: auth.isLoading ? null : _handleFacebookRegister,
+            icon: const Icon(
+              Icons.facebook_rounded,
+              color: Color(0xFF1877F2),
+              size: 24,
+            ),
+            label: 'Đăng ký với Facebook',
+          ),
+
+          const SizedBox(height: 24),
+
+          // ─── Login link ───
+          Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Đã có tài khoản? ',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    auth.clearError();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'Đăng nhập',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ─── Reusable components (same style as login) ──────────────
+  // ═══════════════════════════════════════════════════════════
+  //  PASSWORD STRENGTH BAR
+  // ═══════════════════════════════════════════════════════════
 
-class _BackButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _BackButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
-        child: const Icon(
-          Icons.arrow_back_ios_new_rounded,
-          size: 18,
-          color: AppColors.textPrimary,
-        ),
-      ),
-    );
-  }
-}
-
-class _BackgroundDecoration extends StatelessWidget {
-  const _BackgroundDecoration();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
+  Widget _buildPasswordStrengthBar(
+    ({double value, String label, Color color}) strength,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Positioned(
-          top: -80,
-          left: -60,
-          child: Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  AppColors.primaryLight.withValues(alpha: 0.1),
-                  AppColors.primaryLight.withValues(alpha: 0.0),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -80,
-          right: -60,
-          child: Container(
-            width: 240,
-            height: 240,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.06),
-                  AppColors.primary.withValues(alpha: 0.0),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.favorite_rounded,
-            color: Colors.white,
-            size: 26,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
           children: [
-            const Text(
-              'SHCare',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: AppColors.textPrimary,
-                letterSpacing: -0.5,
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: strength.value),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return LinearProgressIndicator(
+                      value: value,
+                      minHeight: 5,
+                      backgroundColor: const Color(0xFFE8ECF0),
+                      valueColor: AlwaysStoppedAnimation(strength.color),
+                    );
+                  },
+                ),
               ),
             ),
+            const SizedBox(width: 12),
             Text(
-              'Sức khỏe thông minh',
+              strength.label,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600,
+                color: strength.color,
               ),
             ),
           ],
@@ -531,14 +528,77 @@ class _BrandHeader extends StatelessWidget {
       ],
     );
   }
-}
 
-class _InputLabel extends StatelessWidget {
-  final String label;
-  const _InputLabel({required this.label});
+  // ═══════════════════════════════════════════════════════════
+  //  TERMS CHECKBOX
+  // ═══════════════════════════════════════════════════════════
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTermsCheckbox() {
+    return GestureDetector(
+      onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: _agreedToTerms ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(
+                color: _agreedToTerms
+                    ? AppColors.primary
+                    : AppColors.cardBorder,
+                width: 2,
+              ),
+            ),
+            child: _agreedToTerms
+                ? const Icon(
+                    Icons.check_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  )
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: const TextSpan(
+                text: 'Tôi đồng ý với ',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                  fontFamily: 'PlusJakartaSans',
+                ),
+                children: [
+                  TextSpan(
+                    text: 'Điều khoản sử dụng',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(text: ' và '),
+                  TextSpan(
+                    text: 'Chính sách bảo mật',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputLabel(String label) {
     return Text(
       label,
       style: const TextStyle(
@@ -550,18 +610,49 @@ class _InputLabel extends StatelessWidget {
   }
 }
 
-class _StyledTextField extends StatelessWidget {
+// ═══════════════════════════════════════════════════════════════
+//  SHARED PREMIUM WIDGETS (same design system as login)
+// ═══════════════════════════════════════════════════════════════
+
+class _GradientHeader extends StatelessWidget {
+  final double height;
+  const _GradientHeader({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF0A1628), Color(0xFF0C3B2E), Color(0xFF0FA87E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+      ),
+      child: CustomPaint(
+        painter: _HeaderPatternPainter(),
+      ),
+    );
+  }
+}
+
+class _PremiumTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
-  final IconData prefixIcon;
+  final IconData prefixIconData;
   final bool obscureText;
   final Widget? suffixIcon;
   final TextInputType? keyboardType;
 
-  const _StyledTextField({
+  const _PremiumTextField({
     required this.controller,
     required this.hintText,
-    required this.prefixIcon,
+    required this.prefixIconData,
     this.obscureText = false,
     this.suffixIcon,
     this.keyboardType,
@@ -569,36 +660,138 @@ class _StyledTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textPrimary,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFFF8FAFA),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      decoration: InputDecoration(
-        hintText: hintText,
-        prefixIcon: Icon(prefixIcon, color: AppColors.textHint, size: 20),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: AppColors.cardBg,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppColors.radiusMd),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(
+            color: AppColors.textHint,
+            fontSize: 14,
+          ),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(10),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(prefixIconData, color: AppColors.primary, size: 18),
+          ),
+          suffixIcon: suffixIcon,
+          filled: true,
+          fillColor: const Color(0xFFF8FAFA),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 18,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: AppColors.cardBorder.withValues(alpha: 0.5),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: AppColors.cardBorder.withValues(alpha: 0.5),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(
+              color: AppColors.primary,
+              width: 1.5,
+            ),
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  final String label;
+
+  const _GradientButton({
+    required this.onPressed,
+    required this.isLoading,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: onPressed != null
+              ? AppColors.primaryGradient
+              : LinearGradient(
+                  colors: [
+                    AppColors.primary.withValues(alpha: 0.5),
+                    AppColors.primaryLight.withValues(alpha: 0.5),
+                  ],
+                ),
           borderRadius: BorderRadius.circular(AppColors.radiusMd),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          boxShadow: onPressed != null
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppColors.radiusMd),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppColors.radiusMd),
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
     );
@@ -650,7 +843,19 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: AppColors.cardBorder)),
+        Expanded(
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.cardBorder.withValues(alpha: 0.0),
+                  AppColors.cardBorder,
+                ],
+              ),
+            ),
+          ),
+        ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -662,18 +867,30 @@ class _OrDivider extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: AppColors.cardBorder)),
+        Expanded(
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.cardBorder,
+                  AppColors.cardBorder.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _SocialLoginButton extends StatelessWidget {
+class _SocialButton extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget icon;
   final String label;
 
-  const _SocialLoginButton({
+  const _SocialButton({
     required this.onTap,
     required this.icon,
     required this.label,
@@ -683,30 +900,38 @@ class _SocialLoginButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.cardBg,
-          side: const BorderSide(color: AppColors.cardBorder, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppColors.radiusMd),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+      height: 54,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.cardBorder.withValues(alpha: 0.6),
               ),
             ),
-          ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                icon,
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -733,37 +958,25 @@ class _GoogleLogoPainter extends CustomPainter {
     final redPaint = Paint()..color = const Color(0xFFEA4335);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      -pi / 4,
-      -pi / 2,
-      true,
-      redPaint,
+      -pi / 4, -pi / 2, true, redPaint,
     );
 
     final yellowPaint = Paint()..color = const Color(0xFFFBBC05);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      pi * 3 / 4,
-      -pi / 2,
-      true,
-      yellowPaint,
+      pi * 3 / 4, -pi / 2, true, yellowPaint,
     );
 
     final greenPaint = Paint()..color = const Color(0xFF34A853);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      pi / 4,
-      pi / 2,
-      true,
-      greenPaint,
+      pi / 4, pi / 2, true, greenPaint,
     );
 
     final bluePaint = Paint()..color = const Color(0xFF4285F4);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      -pi / 4,
-      pi / 2,
-      true,
-      bluePaint,
+      -pi / 4, pi / 2, true, bluePaint,
     );
 
     final whitePaint = Paint()..color = Colors.white;
@@ -771,20 +984,16 @@ class _GoogleLogoPainter extends CustomPainter {
 
     canvas.drawRect(
       Rect.fromLTWH(
-        center.dx - radius * 0.05,
-        center.dy - radius * 0.3,
-        radius * 1.05,
-        radius * 0.6,
+        center.dx - radius * 0.05, center.dy - radius * 0.3,
+        radius * 1.05, radius * 0.6,
       ),
       bluePaint,
     );
 
     canvas.drawRect(
       Rect.fromLTWH(
-        center.dx - radius * 0.05,
-        center.dy - radius * 0.15,
-        radius * 0.6,
-        radius * 0.3,
+        center.dx - radius * 0.05, center.dy - radius * 0.15,
+        radius * 0.6, radius * 0.3,
       ),
       whitePaint,
     );
@@ -792,4 +1001,37 @@ class _GoogleLogoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _HeaderPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    const circles = [
+      _PatternCircle(0.08, 0.25, 45, 0.05),
+      _PatternCircle(0.88, 0.15, 65, 0.04),
+      _PatternCircle(0.75, 0.75, 35, 0.06),
+      _PatternCircle(0.25, 0.85, 55, 0.04),
+      _PatternCircle(0.55, 0.1, 28, 0.07),
+      _PatternCircle(0.4, 0.6, 40, 0.03),
+    ];
+
+    for (final c in circles) {
+      paint.color = Colors.white.withValues(alpha: c.opacity);
+      canvas.drawCircle(
+        Offset(size.width * c.x, size.height * c.y),
+        c.radius,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _PatternCircle {
+  final double x, y, radius, opacity;
+  const _PatternCircle(this.x, this.y, this.radius, this.opacity);
 }

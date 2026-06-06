@@ -49,6 +49,16 @@ class PetService {
 
     final snapshot = await petRef.get();
     if (!snapshot.exists) {
+      String ownerName = 'Bạn của Pet';
+      try {
+        final userDoc = await _db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          ownerName = (userDoc.data()?['name'] as String?) ?? 'Bạn của Pet';
+        }
+      } catch (e) {
+        print("🚨 Lỗi khi lấy tên chủ Pet: $e");
+      }
+
       final newPet = PetModel(
         id: 'current_pet',
         userId: userId,
@@ -59,8 +69,24 @@ class PetService {
         message: 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
         currentTask: 'Đi bộ 500 bước để khởi động ngày mới.',
         isTaskCompleted: false,
+        currentTitle: 'Chúa tể ôm giường',
+        ownerName: ownerName,
       );
       await petRef.set(newPet.toJson());
+    }
+  }
+
+  // Cập nhật tên chủ sở hữu Pet
+  Future<void> updateOwnerName(String userId, String newName) async {
+    try {
+      final petRef = _db
+          .collection('users')
+          .doc(userId)
+          .collection('pets')
+          .doc('current_pet');
+      await petRef.update({'owner_name': newName});
+    } catch (e) {
+      print("🚨 Lỗi updateOwnerName: $e");
     }
   }
 
