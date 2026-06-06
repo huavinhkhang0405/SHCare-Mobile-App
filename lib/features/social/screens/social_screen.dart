@@ -21,12 +21,14 @@ class SocialScreen extends StatefulWidget {
 
 class _SocialScreenState extends State<SocialScreen> {
   final TextEditingController _friendCodeController = TextEditingController();
+  final TextEditingController _searchFriendController = TextEditingController();
   final SocialService _socialService = SocialService();
   bool _isAddingFriend = false;
   bool _isMatchingFacebookFriends = false;
   bool _isLoadingLeaderboard = false;
   bool _showIdInput = false;
   List<PetModel> _leaderboard = [];
+  String _searchFriendQuery = '';
   
   String? _lastUserId;
   List<String>? _lastFriends;
@@ -78,6 +80,7 @@ class _SocialScreenState extends State<SocialScreen> {
   @override
   void dispose() {
     _friendCodeController.dispose();
+    _searchFriendController.dispose();
     super.dispose();
   }
 
@@ -628,6 +631,11 @@ class _SocialScreenState extends State<SocialScreen> {
     final myUid = auth.currentUser?.id ?? '';
     final myFriendCode = auth.currentUser?.friendCode ?? '';
 
+    final filteredBoard = _leaderboard.where((pet) {
+      if (_searchFriendQuery.isEmpty) return true;
+      return pet.ownerName.toLowerCase().contains(_searchFriendQuery.toLowerCase());
+    }).toList();
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
@@ -1059,43 +1067,97 @@ class _SocialScreenState extends State<SocialScreen> {
                         ),
                       )
                     else ...[
-                      // BỤC VINH QUANG PODIUM (TOP 3)
-                      _buildPodium(_leaderboard),
-                      const SizedBox(height: 24),
+                      // Search bar to filter friends
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TextField(
+                          controller: _searchFriendController,
+                          onChanged: (val) {
+                            setState(() {
+                              _searchFriendQuery = val.trim();
+                            });
+                          },
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Tìm kiếm bạn bè theo tên...',
+                            hintStyle: const TextStyle(fontSize: 12, color: Colors.white38),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                            suffixIcon: _searchFriendQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded, size: 18, color: Colors.white38),
+                                    onPressed: () {
+                                      setState(() {
+                                        _searchFriendQuery = '';
+                                        _searchFriendController.clear();
+                                      });
+                                    },
+                                  )
+                                : null,
+                            fillColor: const Color(0xFF162033),
+                            filled: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      if (_searchFriendQuery.isEmpty) ...[
+                        // BỤC VINH QUANG PODIUM (TOP 3)
+                        _buildPodium(_leaderboard),
+                        const SizedBox(height: 24),
+                      ],
 
                       // BẢNG XẾP HẠNG THƯỜNG (#4 trở đi)
-                      const Text(
-                        'Bảng xếp hạng',
-                        style: TextStyle(
+                      Text(
+                        _searchFriendQuery.isEmpty ? 'Bảng xếp hạng' : 'Kết quả tìm kiếm',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                           color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 10),
-
-                      if (_leaderboard.length <= 3)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: Text(
-                              'Đã hiện hết bục vinh quang 👑',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textHint,
-                                fontWeight: FontWeight.bold,
+                      if (filteredBoard.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
+                              SizedBox(height: 12),
+                              Text(
+                                'Không tìm thấy bạn bè nào phù hợp',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         )
                       else
                         ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _leaderboard.length - 3,
+                          itemCount: filteredBoard.length,
                           itemBuilder: (context, index) {
-                            final idx = index + 3;
-                            final pet = _leaderboard[idx];
+                            final idx = index;
+                            final pet = filteredBoard[idx];
                             final isMe = pet.userId == myUid;
                             final sprite = _sprites[pet.classType] ?? _sprites[4]!;
 
@@ -1125,7 +1187,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                   SizedBox(
                                     width: 28,
                                     child: Text(
-                                      '#${idx + 1}',
+                                      '#${_leaderboard.indexOf(pet) + 1}',
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w900,

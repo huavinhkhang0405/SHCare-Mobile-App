@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
+import '../../../providers/auth_provider.dart';
 
 class StatsHeader extends StatelessWidget {
   const StatsHeader({super.key});
 
-  int _getWeekOfYear() {
+  int _getWeekOfYear(DateTime? createdAt) {
+    if (createdAt == null) return 1;
     final now = DateTime.now();
-    final firstDayOfYear = DateTime(now.year, 1, 1);
-    final daysPast = now.difference(firstDayOfYear).inDays;
-    return (daysPast / 7).ceil();
+    final createdDate = DateTime(createdAt.year, createdAt.month, createdAt.day);
+    final nowDate = DateTime(now.year, now.month, now.day);
+    final daysPast = nowDate.difference(createdDate).inDays;
+    final week = (daysPast / 7).floor() + 1;
+    return week < 1 ? 1 : week;
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final createdAt = authProvider.currentUser?.createdAt;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -28,6 +36,7 @@ class StatsHeader extends StatelessWidget {
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
                   color: AppColors.textPrimary,
+                  fontFamily: 'Inter',
                 ),
               ),
               SizedBox(height: 4),
@@ -36,6 +45,7 @@ class StatsHeader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
+                  fontFamily: 'Inter',
                 ),
               ),
             ],
@@ -61,11 +71,12 @@ class StatsHeader extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Tuần ${_getWeekOfYear()}',
+                'Tuần ${_getWeekOfYear(createdAt)}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
+                  fontFamily: 'Inter',
                 ),
               ),
             ],
@@ -75,6 +86,7 @@ class StatsHeader extends StatelessWidget {
     );
   }
 }
+
 
 class StatsSectionHeader extends StatelessWidget {
   const StatsSectionHeader({
