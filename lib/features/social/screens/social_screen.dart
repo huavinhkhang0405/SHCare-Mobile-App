@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../models/pet_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../home/providers/health_provider.dart';
@@ -138,30 +140,115 @@ class _SocialScreenState extends State<SocialScreen> {
     final myUid = auth.currentUser?.id ?? '';
     final messenger = ScaffoldMessenger.of(context);
 
-    final success = await _socialService.addFriendByCode(code, myUid);
+    final result = await _socialService.sendFriendRequest(code, myUid);
 
     if (mounted) {
       setState(() {
         _isAddingFriend = false;
       });
 
+      String message = '';
+      Color bgColor = Colors.red;
+
+      switch (result) {
+        case FriendRequestResult.sent:
+          message = 'Đã gửi lời mời kết bạn thành công! Chờ đối phương xác nhận.';
+          bgColor = Colors.green;
+          _friendCodeController.clear();
+          break;
+        case FriendRequestResult.alreadyFriends:
+          message = 'Hai bạn đã là bạn bè của nhau rồi!';
+          bgColor = Colors.blue;
+          _friendCodeController.clear();
+          break;
+        case FriendRequestResult.alreadyRequested:
+          message = 'Bạn đã gửi lời mời kết bạn trước đó rồi, vui lòng chờ duyệt!';
+          bgColor = Colors.orange;
+          _friendCodeController.clear();
+          break;
+        case FriendRequestResult.autoAccepted:
+          message = 'Đối phương cũng đã gửi lời mời trước đó! Hai bạn đã trở thành bạn bè.';
+          bgColor = Colors.green;
+          _friendCodeController.clear();
+          // Tải lại thông tin user trong AuthProvider để cập nhật mảng friends
+          await auth.reloadUserData();
+          // Load lại leaderboard
+          await _loadData();
+          break;
+        case FriendRequestResult.selfConnect:
+          message = 'Không thể kết bạn với chính mình!';
+          bgColor = Colors.orange;
+          break;
+        case FriendRequestResult.notFound:
+          message = 'Không tìm thấy mã kết bạn tương ứng!';
+          bgColor = Colors.red;
+          break;
+        case FriendRequestResult.error:
+        default:
+          message = 'Đã xảy ra lỗi khi kết bạn. Vui lòng thử lại!';
+          bgColor = Colors.red;
+          break;
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: bgColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleAcceptRequest(String myUid, String requesterId, String requesterName) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthProvider>();
+
+    final success = await _socialService.acceptFriendRequest(myUid, requesterId);
+
+    if (mounted) {
       if (success) {
-        _friendCodeController.clear();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Kết bạn thành công! Đang cập nhật bảng xếp hạng...'),
+          SnackBar(
+            content: Text('Đã chấp nhận lời mời kết bạn từ $requesterName! 👥'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Tải lại thông tin user trong AuthProvider để cập nhật mảng friends
+        // Reload user info to update list of friends
         await auth.reloadUserData();
-        // Load lại leaderboard
+        // Load leaderboard again
         await _loadData();
       } else {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Không tìm thấy mã kết bạn hoặc mã không hợp lệ!'),
+            content: Text('Chấp nhận kết bạn thất bại. Vui lòng thử lại!'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleDeclineRequest(String myUid, String requesterId, String requesterName) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final success = await _socialService.declineFriendRequest(myUid, requesterId);
+
+    if (mounted) {
+      if (success) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Đã từ chối lời mời kết bạn từ $requesterName!'),
+            backgroundColor: Colors.grey,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Từ chối kết bạn thất bại. Vui lòng thử lại!'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -930,6 +1017,7 @@ class _SocialScreenState extends State<SocialScreen> {
                         ],
                       ),
                     ),
+                    _buildFriendRequestsSection(myUid),
                     const SizedBox(height: 24),
 
                     if (_isLoadingLeaderboard)
@@ -1358,6 +1446,148 @@ class _SocialScreenState extends State<SocialScreen> {
                   ),
                 ),
               ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFriendRequestsSection(String myUid) {
+    if (myUid.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _socialService.streamFriendRequests(myUid),
+      builder: (context, snapshot) {
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final requests = snapshot.data!.docs;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_add_alt_1_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Lời mời kết bạn (${requests.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: requests.length,
+              itemBuilder: (context, index) {
+                final doc = requests[index];
+                final data = doc.data() as Map<String, dynamic>;
+                final requesterId = doc.id;
+                final name = data['sender_name'] as String? ?? 'Người dùng SHCare';
+                final avatar = data['sender_avatar'] as String?;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF162033),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.05),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Avatar
+                      UserAvatar(
+                        avatarUrl: avatar,
+                        size: 40,
+                      ),
+                      const SizedBox(width: 12),
+                      // Tên
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Nút Từ chối
+                      SizedBox(
+                        height: 32,
+                        child: OutlinedButton(
+                          onPressed: () => _handleDeclineRequest(myUid, requesterId, name),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Nút Đồng ý
+                      SizedBox(
+                        height: 32,
+                        child: FilledButton(
+                          onPressed: () => _handleAcceptRequest(myUid, requesterId, name),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Đồng ý',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         );
