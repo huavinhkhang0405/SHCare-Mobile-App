@@ -15,6 +15,7 @@ class PetModel {
   final int streakCount;
   final int streakFreezeCount;
   final int goldCoins;
+  final DateTime? lastStreakUpdateDate;
 
   // ─── Trạng thái hiện tại ──────────────────────────────────
   /// Ví dụ: 'Năng động', 'Khát', 'Mệt mỏi', 'Vui vẻ'
@@ -44,6 +45,7 @@ class PetModel {
     this.streakCount = 0,
     this.streakFreezeCount = 0,
     this.goldCoins = 0,
+    this.lastStreakUpdateDate,
     this.state = 'Năng động',
     this.message = 'Chào bạn! Hôm nay mình cùng nhau rèn sức khỏe nhé.',
     this.currentTask = 'Đi bộ 500 bước để khởi động ngày mới.',
@@ -85,6 +87,9 @@ class PetModel {
       streakCount: (json['streak_count'] as int?) ?? 0,
       streakFreezeCount: (json['streak_freeze_count'] as int?) ?? 0,
       goldCoins: (json['gold_coins'] as int?) ?? 0,
+      lastStreakUpdateDate: json['last_streak_update_date'] != null
+          ? DateTime.tryParse(json['last_streak_update_date'] as String)
+          : null,
       state: (json['state'] as String?) ?? 'Năng động',
       message: (json['message'] as String?) ?? '',
       currentTask: (json['current_task'] as String?) ?? '',
@@ -109,6 +114,7 @@ class PetModel {
       'streak_count': streakCount,
       'streak_freeze_count': streakFreezeCount,
       'gold_coins': goldCoins,
+      'last_streak_update_date': lastStreakUpdateDate?.toIso8601String(),
       'state': state,
       'message': message,
       'current_task': currentTask,
@@ -128,6 +134,7 @@ class PetModel {
     int? streakCount,
     int? streakFreezeCount,
     int? goldCoins,
+    DateTime? lastStreakUpdateDate,
     String? state,
     String? message,
     String? currentTask,
@@ -146,6 +153,7 @@ class PetModel {
       streakCount: streakCount ?? this.streakCount,
       streakFreezeCount: streakFreezeCount ?? this.streakFreezeCount,
       goldCoins: goldCoins ?? this.goldCoins,
+      lastStreakUpdateDate: lastStreakUpdateDate ?? this.lastStreakUpdateDate,
       state: state ?? this.state,
       message: message ?? this.message,
       currentTask: currentTask ?? this.currentTask,
@@ -189,6 +197,9 @@ class PetModel {
       streakCount: (data['streak_count'] as int?) ?? 0,
       streakFreezeCount: (data['streak_freeze_count'] as int?) ?? 0,
       goldCoins: (data['gold_coins'] as int?) ?? 0,
+      lastStreakUpdateDate: data['last_streak_update_date'] != null
+          ? DateTime.tryParse(data['last_streak_update_date'] as String)
+          : null,
       state: (data['state'] as String?) ?? 'Năng động',
       message: (data['message'] as String?) ?? '',
       currentTask: (data['current_task'] as String?) ?? '',

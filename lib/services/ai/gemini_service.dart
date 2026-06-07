@@ -73,10 +73,24 @@ class GeminiService {
         return await requestBuilder(model);
       } catch (e) {
         attempts++;
-        debugPrint('🚨 [GeminiService] Lỗi khi gọi API với key index $_currentKeyIndex (Lần thử $attempts/$maxAttempts): $e');
+        final errStr = e.toString();
+        final isQuotaOrUnavailable = errStr.contains('429') || 
+                                     errStr.contains('503') || 
+                                     errStr.contains('Quota exceeded') || 
+                                     errStr.contains('ResourceExhausted') || 
+                                     errStr.contains('Service Unavailable');
+        
+        if (isQuotaOrUnavailable) {
+          debugPrint('⚠️ [GeminiService] Phát hiện lỗi giới hạn tần suất/dịch vụ (429/503) với key $_currentKeyIndex. Tự động xoay sang key tiếp theo.');
+        } else {
+          debugPrint('🚨 [GeminiService] Lỗi khi gọi API với key index $_currentKeyIndex (Lần thử $attempts/$maxAttempts): $e');
+        }
         
         if (attempts < maxAttempts) {
           _rotateKey();
+          if (isQuotaOrUnavailable) {
+            await Future.delayed(const Duration(milliseconds: 200));
+          }
         } else {
           rethrow;
         }
@@ -85,9 +99,15 @@ class GeminiService {
     throw Exception('Đã thử tất cả các API key nhưng đều thất bại.');
   }
 
-  /// Làm sạch chuỗi JSON từ Gemini (bỏ markdown code blocks nếu có)
+  /// Làm sạch chuỗi JSON từ Gemini (bỏ markdown code blocks và trích xuất đúng mảng/đối tượng JSON)
   String _sanitizeJson(String rawText) {
-    return rawText.replaceAll(RegExp(r'```json|```'), '').trim();
+    var clean = rawText.replaceAll(RegExp(r'```json|```JSON|```'), '').trim();
+    final jsonStart = clean.indexOf(RegExp(r'[\[\{]'));
+    final jsonEnd = clean.lastIndexOf(RegExp(r'[\]\}]'));
+    if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+      clean = clean.substring(jsonStart, jsonEnd + 1);
+    }
+    return clean;
   }
 
   /// Xác thực hình ảnh hoàn thành nhiệm vụ qua Gemini AI (Multimodal)
@@ -182,7 +202,6 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
   "protein_g": 22.5,
   "fat_g": 12.0,
   "water_liters": 0.25,
-  "confidence_percentage": 85,
   "assessment": "Đánh giá dinh dưỡng của món ăn..."
 }
 ''';
@@ -219,6 +238,31 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
     }
   }
 
+  String buildPersonalizedContext({
+    required double bmi,
+    required String primaryHealthGoal,
+    required int yesterdaySteps,
+    required double yesterdaySleepMinutes,
+    required int streakCount,
+  }) {
+    final sleepHours = yesterdaySleepMinutes / 60.0;
+    return '''
+[Bối cảnh cá nhân hóa chuyên sâu từ Huấn luyện viên AI]
+- Thể trạng BMI của người dùng: ${bmi.toStringAsFixed(1)} (phân loại y sinh: ${_getBmiCategory(bmi)}).
+- Mục tiêu sức khỏe cốt lõi dài hạn: $primaryHealthGoal.
+- Nhật ký hoạt động hôm qua: Người dùng đã đi bộ $yesterdaySteps bước chân, giấc ngủ đạt được ${sleepHours.toStringAsFixed(1)} giờ.
+- Chuỗi ngày liên tục rèn luyện kỷ luật (Streak): $streakCount ngày.
+''';
+  }
+
+  String _getBmiCategory(double bmi) {
+    if (bmi < 18.5) return 'Thiếu cân';
+    if (bmi < 23.0) return 'Bình thường';
+    if (bmi < 25.0) return 'Tiền béo phì';
+    if (bmi < 30.0) return 'Béo phì độ I';
+    return 'Béo phì độ II';
+  }
+
   /// Hàm chính để sinh nhiệm vụ sức khỏe dựa trên chỉ số real-time.
   ///
   /// Trả về [List<TaskSuggestion>] luôn đúng 3 nhiệm vụ.
@@ -239,6 +283,10 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
     String? targetBedtime,
     String? targetWakeTime,
     List<Map<String, dynamic>> taskHistory = const [],
+    required String primaryHealthGoal,
+    required int yesterdaySteps,
+    required double yesterdaySleepMinutes,
+    required int streakCount,
   }) async {
     // Nếu chưa có API key, trả fallback ngay
     if (!_isConfigured) {
@@ -255,36 +303,53 @@ TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (Không thêm bất kỳ văn bản n�
         ? "Chưa có dữ liệu lịch sử." 
         : taskHistory.map((h) => "- ${h['task_name'] ?? h['title'] ?? ''}: ${h['is_completed'] == true ? 'Hoàn thành' : 'Bỏ qua'}").join('\n');
 
+    final contextString = buildPersonalizedContext(
+      bmi: bmiVal,
+      primaryHealthGoal: primaryHealthGoal,
+      yesterdaySteps: yesterdaySteps,
+      yesterdaySleepMinutes: yesterdaySleepMinutes,
+      streakCount: streakCount,
+    );
+
     // ─── 1. Prompt Engineering ──────────────────────────────
     final prompt = '''
-Bạn là lõi AI thông minh tối cao của ứng dụng SHCare, có nhiệm vụ lập lịch trình chính xác 3 nhiệm vụ sức khỏe hàng ngày cho người dùng.
+Bạn là lõi AI thông minh tối cao của ứng dụng SHCare, đóng vai trò là một Huấn luyện viên sức khỏe cá nhân (Context-Aware AI Coach) nhằm cá nhân hóa chính xác 3 nhiệm vụ sức khỏe hàng ngày cho người dùng dựa trên thể trạng và thói quen của họ.
 
-[Thông tin cá nhân & Thói quen]
+$contextString
+
+[Thông tin cơ bản người dùng]
 - Chiều cao: ${heightCm?.toStringAsFixed(0) ?? '170'} cm
 - Cân nặng: ${weightKg?.toStringAsFixed(1) ?? '70'} kg
-- Chỉ số khối cơ thể (BMI): ${bmiVal.toStringAsFixed(1)}
 - Giới tính: ${gender ?? 'Khác'}
 - Tuổi: $age tuổi
 - Tần suất tập thể dục: ${activityLevel ?? 'Vừa phải'}
 - Mục tiêu giấc ngủ: đi ngủ lúc ${targetBedtime ?? '23:00'} và dậy lúc ${targetWakeTime ?? '07:00'}
 
-[Chỉ số hiện tại]
-- Bước chân: $steps / $stepGoal
-- Nhịp tim: $bpm bpm
-- Lượng nước đã uống: $waterLiters / $waterGoal lít
+[Chỉ số hôm nay]
+- Bước chân hôm nay: $steps / $stepGoal
+- Nhịp tim hiện tại: $bpm bpm
+- Lượng nước uống hôm nay: $waterLiters / $waterGoal lít
 - Mức năng lượng: ${(energyLevel * 100).toInt()}%
 - 📱 Hoạt động kỹ thuật số (Screen Time): $screenTimeData
 
 [LỊCH SỬ HOÀN THÀNH 3 NGÀY QUA CỦA NGƯỜI DÙNG]
 $historyString
 
+[QUY TẮC AN TOÀN Y SINH HỌC & RÀNG BUỘC (Safety Guardrails) - BẮT BUỘC TUÂN THỦ]
+1. Theo sát mục tiêu cốt lõi: 
+   - Nếu mục tiêu là "Giảm cân" (Weight Loss) hoặc "Duy trì sức khỏe", ưu tiên các nhiệm vụ vận động (exercise) và dinh dưỡng lành mạnh (nutrition).
+   - Nếu mục tiêu là "Cải thiện giấc ngủ" (Sleep Improvement) hoặc "Duy trì năng lượng", ưu tiên các nhiệm vụ ngủ (sleep), nghỉ ngơi (rest), và giải tỏa căng thẳng.
+2. Bù đắp giấc ngủ: Nếu giấc ngủ đêm qua của người dùng ít hơn 6 tiếng (yesterdaySleepMinutes < 360), bắt buộc phải sinh ra ít nhất 1 nhiệm vụ thuộc nhóm ngủ (sleep) hoặc nghỉ ngơi thư giãn (rest) giúp phục hồi năng lượng và ngủ sớm hơn tối nay.
+3. An toàn thể trạng (BMI & Năng lượng):
+   - Nếu BMI >= 23.0 (thừa cân/béo phì) hoặc mức năng lượng hiện tại dưới 40%, tuyệt đối CẤM đề xuất các bài tập vận động nặng (ví dụ: HIIT, chạy nhanh cường độ cao, cử tạ nặng). Thay vào đó, hãy đề xuất đi bộ nhẹ nhàng, tập thở sâu, thiền ngắn hoặc giãn cơ.
+4. Chống ép chín ép non (Vận động tiệm tiến): Giới hạn cường độ bước chân trong các nhiệm vụ vận động. Mục tiêu bước đi mới không được tăng đột ngột quá 20% so với số bước thực tế họ đã đi được ngày hôm qua (yesterdaySteps). (Ví dụ: Nếu hôm qua họ chỉ đi 1000 bước, nhiệm vụ hôm nay không được vượt quá 1200 bước).
+
 [QUY TẮC CÁ NHÂN HÓA ĐỘ KHÓ (DDA)]
-- Phân tích lịch sử trên: Nếu thấy người dùng liên tục bỏ qua nhiệm vụ khó, hãy hạ độ khó xuống để tạo động lực. Nếu họ hoàn thành xuất sắc, hãy tăng tính thử thách dần.
+- Phân tích lịch sử hoàn thành nhiệm vụ: Nếu người dùng liên tục bỏ qua nhiệm vụ khó, hãy hạ độ khó xuống. Nếu họ hoàn thành xuất sắc, hãy tăng tính thử thách dần.
 - Luôn sinh chính xác 3 nhiệm vụ với phân cấp phần thưởng EXP nghiêm ngặt:
   + 1 Nhiệm vụ Dễ: Phần thưởng ĐÚNG 20 EXP.
   + 1 Nhiệm vụ Vừa: Phần thưởng ĐÚNG 30 EXP.
   + 1 Nhiệm vụ Khó: Phần thưởng ĐÚNG 50 EXP.
-- Không giao nhiệm vụ vận động mạnh nếu Mức năng lượng đang dưới 40%.
 - 3 nhiệm vụ phải đa dạng, không trùng lặp loại (type): 'water', 'exercise', 'rest', 'sleep'.
 
 [QUY TẮC PHÂN BỔ PHƯƠNG THỨC XÁC THỰC HÌNH ẢNH (requires_image)]
@@ -298,7 +363,7 @@ $historyString
 - Gán trường `"expires_in_minutes"` từ 30 đến 60 phút. Các nhiệm vụ còn lại đặt `"is_flash_quest": false` và `"expires_in_minutes": null`.
 
 [ĐỊNH DẠNG ĐẦU RA BẮT BUỘC]
-Trả về một mảng JSON thuần túy (luôn gồm đúng 3 phần tử), TUYỆT ĐỐI không bao bọc trong mã khối markdown (vd: không chứa thẻ ```json hay ```), không chứa khoảng trắng thừa hay ký tự lạ. Các trường boolean phải ở dạng kiểu dữ liệu nguyên bản, không bọc trong dấu ngoặc kép.
+Trả về một mảng JSON thuần túy (luôn gồm đúng 3 phần tử), TUYỆT ĐỐI không bao bọc trong mã khối markdown (vd: không chứa thẻ ```json hay ```), không chứa khoảng trắng thừa hay ký tự lạ. Các trường boolean phải ở dạng kiểu dữ liệu nguyên bản, không bọc trong dấu ngoặc kép. Hãy luôn trả về các trường `target_steps` và `required_duration_minutes` dưới dạng số nguyên (integer) trong JSON phản hồi.
 
 Mẫu cấu trúc JSON chính xác:
 [
@@ -309,7 +374,9 @@ Mẫu cấu trúc JSON chính xác:
     "type": "nutrition",
     "requires_image": true,
     "is_flash_quest": false,
-    "expires_in_minutes": null
+    "expires_in_minutes": null,
+    "target_steps": 0,
+    "required_duration_minutes": 0
   }
 ]
 ''';
@@ -477,6 +544,8 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
         type: 'water',
         priority: 3,
         source: 'rule_based',
+        targetSteps: 0,
+        requiredDuration: Duration.zero,
       ),
       TaskSuggestion(
         id: 'fallback_rest_${DateTime.now().millisecondsSinceEpoch}',
@@ -488,6 +557,8 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
         type: 'rest',
         priority: 2,
         source: 'rule_based',
+        targetSteps: 0,
+        requiredDuration: const Duration(minutes: 2),
       ),
       TaskSuggestion(
         id: 'fallback_fruit_${DateTime.now().millisecondsSinceEpoch}',
@@ -497,9 +568,10 @@ Trả về nội dung văn bản trực tiếp không chứa JSON hay ký tự �
         category: 'Dinh dưỡng',
         expReward: 50,
         type: 'water',
-        requiresImage: true,
         priority: 1,
         source: 'rule_based',
+        targetSteps: 0,
+        requiredDuration: Duration.zero,
       ),
     ];
   }

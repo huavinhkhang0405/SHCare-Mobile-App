@@ -283,6 +283,7 @@ class AuthProvider extends ChangeNotifier {
     required double heightCm,
     required double weightKg,
     String activityLevel = 'Vừa phải',
+    String primaryHealthGoal = 'Duy trì sức khỏe',
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -312,6 +313,7 @@ class AuthProvider extends ChangeNotifier {
         weightKg: weightKg,
         isOnboarded: true,
         activityLevel: activityLevel,
+        primaryHealthGoal: primaryHealthGoal,
       );
 
       await _userService.saveUser(updatedModel);
@@ -378,6 +380,8 @@ class AuthProvider extends ChangeNotifier {
     String? targetWakeTime,
     String? activityLevel,
     String? avatarUrl,
+    String? primaryHealthGoal,
+    DateTime? lastGoalChangedAt,
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -414,6 +418,8 @@ class AuthProvider extends ChangeNotifier {
         targetWakeTime: targetWakeTime ?? baseModel.targetWakeTime,
         activityLevel: activityLevel ?? baseModel.activityLevel,
         avatarUrl: avatarUrl ?? baseModel.avatarUrl,
+        primaryHealthGoal: primaryHealthGoal ?? baseModel.primaryHealthGoal,
+        lastGoalChangedAt: lastGoalChangedAt ?? baseModel.lastGoalChangedAt,
       );
 
       // Cập nhật local state trước để UI phản hồi lập tức

@@ -1,7 +1,46 @@
 import 'package:app_usage/app_usage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ScreenTimeService {
+  static const MethodChannel _channel = MethodChannel('com.shcare.app/usage_permission');
+
+  static Future<bool> checkUsagePermission() async {
+    try {
+      final bool hasPermission = await _channel.invokeMethod('checkUsagePermission');
+      return hasPermission;
+    } catch (e) {
+      debugPrint('🚨 Error checking usage permission: $e');
+      return false;
+    }
+  }
+
+  static Future<void> openUsageSettings() async {
+    try {
+      await _channel.invokeMethod('openUsageSettings');
+    } catch (e) {
+      debugPrint('🚨 Error opening usage settings: $e');
+    }
+  }
+
+  Future<bool> checkScreenFreeViolation(DateTime startTime, DateTime endTime) async {
+    try {
+      List<AppUsageInfo> infoList = await AppUsage().getAppUsage(startTime, endTime);
+      int totalSeconds = 0;
+      for (var info in infoList) {
+        if (_targetApps.containsKey(info.packageName)) {
+          totalSeconds += info.usage.inSeconds;
+        }
+      }
+      final durationMinutes = endTime.difference(startTime).inMinutes;
+      final toleranceSeconds = durationMinutes <= 3 ? 30 : (durationMinutes <= 5 ? 60 : 180);
+      return totalSeconds > toleranceSeconds; // Vi phạm nếu vượt quá dung sai động
+    } catch (e) {
+      debugPrint('🚨 Lỗi checkScreenFreeViolation: $e');
+      return false;
+    }
+  }
+
   // Danh sách các package name của các app dễ gây nghiện (Tối ưu: Chỉ quét tụi này)
   final Map<String, String> _targetApps = {
     'com.facebook.katana': 'Facebook',

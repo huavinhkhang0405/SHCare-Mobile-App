@@ -18,6 +18,8 @@ class UserModel {
   final String friendCode; // Mã kết bạn duy nhất
   final List<String> friends; // Danh sách UIDs bạn bè
   final String? facebookId; // ID Facebook nếu đăng nhập qua Facebook
+  final String primaryHealthGoal; // Mục tiêu sức khỏe cốt lõi
+  final DateTime? lastGoalChangedAt; // Thời điểm cập nhật mục tiêu gần nhất
   final DateTime createdAt;
 
   UserModel({
@@ -38,6 +40,8 @@ class UserModel {
     this.friendCode = '',
     this.friends = const [],
     this.facebookId,
+    this.primaryHealthGoal = 'Duy trì sức khỏe',
+    this.lastGoalChangedAt,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -64,6 +68,10 @@ class UserModel {
               .toList() ??
           [],
       facebookId: json['facebook_id'] as String?,
+      primaryHealthGoal: json['primary_health_goal'] as String? ?? 'Duy trì sức khỏe',
+      lastGoalChangedAt: json['last_goal_changed_at'] != null
+          ? DateTime.tryParse(json['last_goal_changed_at'] as String)
+          : null,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -96,6 +104,10 @@ class UserModel {
               .toList() ??
           [],
       facebookId: data['facebook_id'] as String?,
+      primaryHealthGoal: data['primary_health_goal'] as String? ?? 'Duy trì sức khỏe',
+      lastGoalChangedAt: data['last_goal_changed_at'] != null
+          ? DateTime.tryParse(data['last_goal_changed_at'] as String)
+          : null,
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
@@ -122,6 +134,8 @@ class UserModel {
       'friend_code': friendCode,
       'friends': friends,
       'facebook_id': facebookId,
+      'primary_health_goal': primaryHealthGoal,
+      'last_goal_changed_at': lastGoalChangedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -145,6 +159,8 @@ class UserModel {
     String? friendCode,
     List<String>? friends,
     String? facebookId,
+    String? primaryHealthGoal,
+    DateTime? lastGoalChangedAt,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -164,6 +180,8 @@ class UserModel {
       friendCode: friendCode ?? this.friendCode,
       friends: friends ?? this.friends,
       facebookId: facebookId ?? this.facebookId,
+      primaryHealthGoal: primaryHealthGoal ?? this.primaryHealthGoal,
+      lastGoalChangedAt: lastGoalChangedAt ?? this.lastGoalChangedAt,
       createdAt: createdAt,
     );
   }
