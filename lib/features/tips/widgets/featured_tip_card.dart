@@ -26,15 +26,15 @@ class FeaturedTipCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF88ECC8), Color(0xFFA8F5D6)],
+        gradient: LinearGradient(
+          colors: [Color(AppColors.primaryLightHex), Color(AppColors.primarySurfaceHex)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppColors.radiusLg),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.15),
+            color: Color(AppColors.primaryHex).withValues(alpha: 0.15),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -50,16 +50,16 @@ class FeaturedTipCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryDark.withValues(alpha: 0.15),
+                    color: Color(AppColors.primaryDarkHex).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     badge,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
-                      color: AppColors.primaryDark,
+                      color: Color(AppColors.primaryDarkHex),
                     ),
                   ),
                 ),
@@ -86,7 +86,7 @@ class FeaturedTipCard extends StatelessWidget {
                 FilledButton(
                   onPressed: () {},
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryDark,
+                    backgroundColor: Color(AppColors.primaryDarkHex),
                     foregroundColor: Colors.white,
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(
@@ -104,13 +104,13 @@ class FeaturedTipCard extends StatelessWidget {
             width: 70,
             height: 70,
             decoration: BoxDecoration(
-              color: AppColors.primaryDark.withValues(alpha: 0.1),
+              color: Color(AppColors.primaryDarkHex).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: GifIcon(
               assetPath: gifAssetPath,
               fallbackIcon: icon,
-              fallbackColor: AppColors.primaryDark,
+              fallbackColor: Color(AppColors.primaryDarkHex),
               size: 40,
             ),
           ),

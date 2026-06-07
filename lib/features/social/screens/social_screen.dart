@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../../models/pet_model.dart';
@@ -155,22 +157,22 @@ class _SocialScreenState extends State<SocialScreen> {
 
       switch (result) {
         case FriendRequestResult.sent:
-          message = 'Đã gửi lời mời kết bạn thành công! Chờ đối phương xác nhận.';
+          message = context.tr('friend_request_sent');
           bgColor = Colors.green;
           _friendCodeController.clear();
           break;
         case FriendRequestResult.alreadyFriends:
-          message = 'Hai bạn đã là bạn bè của nhau rồi!';
+          message = context.tr('already_friends');
           bgColor = Colors.blue;
           _friendCodeController.clear();
           break;
         case FriendRequestResult.alreadyRequested:
-          message = 'Bạn đã gửi lời mời kết bạn trước đó rồi, vui lòng chờ duyệt!';
+          message = context.tr('already_requested');
           bgColor = Colors.orange;
           _friendCodeController.clear();
           break;
         case FriendRequestResult.autoAccepted:
-          message = 'Đối phương cũng đã gửi lời mời trước đó! Hai bạn đã trở thành bạn bè.';
+          message = context.tr('friend_request_auto_accepted');
           bgColor = Colors.green;
           _friendCodeController.clear();
           // Tải lại thông tin user trong AuthProvider để cập nhật mảng friends
@@ -179,16 +181,16 @@ class _SocialScreenState extends State<SocialScreen> {
           await _loadData();
           break;
         case FriendRequestResult.selfConnect:
-          message = 'Không thể kết bạn với chính mình!';
+          message = context.tr('cannot_add_self');
           bgColor = Colors.orange;
           break;
         case FriendRequestResult.notFound:
-          message = 'Không tìm thấy mã kết bạn tương ứng!';
+          message = context.tr('friend_code_not_found');
           bgColor = Colors.red;
           break;
         case FriendRequestResult.error:
         default:
-          message = 'Đã xảy ra lỗi khi kết bạn. Vui lòng thử lại!';
+          message = context.tr('add_friend_error');
           bgColor = Colors.red;
           break;
       }
@@ -213,7 +215,7 @@ class _SocialScreenState extends State<SocialScreen> {
       if (success) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Đã chấp nhận lời mời kết bạn từ $requesterName! 👥'),
+            content: Text(context.tr('friend_request_accepted').replaceAll('{name}', requesterName)),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -224,8 +226,8 @@ class _SocialScreenState extends State<SocialScreen> {
         await _loadData();
       } else {
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Chấp nhận kết bạn thất bại. Vui lòng thử lại!'),
+          SnackBar(
+            content: Text(context.tr('accept_friend_failed')),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -243,15 +245,15 @@ class _SocialScreenState extends State<SocialScreen> {
       if (success) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Đã từ chối lời mời kết bạn từ $requesterName!'),
+            content: Text(context.tr('friend_request_declined').replaceAll('{name}', requesterName)),
             backgroundColor: Colors.grey,
             behavior: SnackBarBehavior.floating,
           ),
         );
       } else {
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Từ chối kết bạn thất bại. Vui lòng thử lại!'),
+          SnackBar(
+            content: Text(context.tr('decline_friend_failed')),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -279,7 +281,7 @@ class _SocialScreenState extends State<SocialScreen> {
         if (addedFriends.isNotEmpty) {
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Đã tự động kết bạn qua Facebook với: ${addedFriends.join(", ")}! 👥'),
+              content: Text(context.tr('facebook_friends_matched', arguments: {'names': addedFriends.join(", ")})),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
@@ -290,8 +292,8 @@ class _SocialScreenState extends State<SocialScreen> {
           await _loadData();
         } else {
           messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Không tìm thấy bạn bè mới nào từ Facebook sử dụng ứng dụng.'),
+            SnackBar(
+              content: Text(context.tr('no_facebook_friends_found')),
               backgroundColor: Colors.orange,
               behavior: SnackBarBehavior.floating,
             ),
@@ -305,7 +307,7 @@ class _SocialScreenState extends State<SocialScreen> {
         });
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Lỗi kết nối Facebook: $e'),
+            content: Text(context.tr('facebook_error', arguments: {'error': e.toString()})),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -342,7 +344,7 @@ class _SocialScreenState extends State<SocialScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Chọc ghẹo ${friendPet.ownerName}',
+                  context.tr('poke_friend', arguments: {'name': friendPet.ownerName}),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -350,9 +352,9 @@ class _SocialScreenState extends State<SocialScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Nhắc nhở bạn bè rèn sức khỏe bằng phong cách Gen Z hài hước!',
-                  style: TextStyle(
+                Text(
+                  context.tr('poke_friend_desc'),
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white60,
                   ),
@@ -360,22 +362,22 @@ class _SocialScreenState extends State<SocialScreen> {
                 const SizedBox(height: 20),
                 _buildPokeOptionTile(
                   icon: '👣',
-                  title: 'Chọc lười vận động',
-                  subtitle: 'Gửi lời chọc vì làm [Cột sống bất ổn]',
+                  title: context.tr('poke_lazy'),
+                  subtitle: context.tr('poke_lazy_desc'),
                   onTap: () => _sendPokeAndPop(friendPet.userId, 'lazy'),
                 ),
                 const SizedBox(height: 12),
                 _buildPokeOptionTile(
                   icon: '💧',
-                  title: 'Chọc lười uống nước',
-                  subtitle: 'Nhắc nhở cây héo uống nước ngay [Sa mạc lời]',
+                  title: context.tr('poke_water'),
+                  subtitle: context.tr('poke_water_desc'),
                   onTap: () => _sendPokeAndPop(friendPet.userId, 'water'),
                 ),
                 const SizedBox(height: 12),
                 _buildPokeOptionTile(
                   icon: '🌙',
-                  title: 'Chọc thức khuya',
-                  subtitle: 'Giục cú đêm deadline đi ngủ gấp',
+                  title: context.tr('poke_sleep'),
+                  subtitle: context.tr('poke_sleep_desc'),
                   onTap: () => _sendPokeAndPop(friendPet.userId, 'sleep'),
                 ),
               ],
@@ -390,7 +392,7 @@ class _SocialScreenState extends State<SocialScreen> {
     Navigator.pop(context);
     final auth = context.read<AuthProvider>();
     final myUid = auth.currentUser?.id ?? '';
-    final myName = auth.userName.isNotEmpty ? auth.userName : 'Bạn bè';
+    final myName = auth.userName.isNotEmpty ? auth.userName : context.tr('default_username');
     final messenger = ScaffoldMessenger.of(context);
 
     final success = await _socialService.sendPoke(
@@ -402,16 +404,16 @@ class _SocialScreenState extends State<SocialScreen> {
 
     if (success) {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Đã chọc ghẹo thành công!'),
+        SnackBar(
+          content: Text(context.tr('poke_success')),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
       );
     } else {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Gửi chọc ghẹo thất bại. Vui lòng thử lại!'),
+        SnackBar(
+          content: Text(context.tr('poke_failed')),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -537,45 +539,69 @@ class _SocialScreenState extends State<SocialScreen> {
     List<Color> gradientColors;
     Color shadowColor;
     String emoji;
+    String key;
 
     switch (title) {
       case 'Cột sống bất ổn':
         gradientColors = [const Color(0xFFFF416C), const Color(0xFFFF4B2B)];
         shadowColor = const Color(0xFFFF4B2B).withOpacity(0.4);
         emoji = '👣';
+        key = 'badge_unstable_spine';
         break;
       case 'Sa mạc lời':
         gradientColors = [const Color(0xFFF12711), const Color(0xFFF5AF19)];
         shadowColor = const Color(0xFFF5AF19).withOpacity(0.4);
         emoji = '💧';
+        key = 'badge_desert_words';
         break;
       case 'Cú đêm deadline':
+        gradientColors = [const Color(0xFF8A2387), const Color(0xFFE94057)];
+        shadowColor = const Color(0xFFE94057).withOpacity(0.4);
+        emoji = '🌙';
+        key = 'badge_night_owl_deadline';
+        break;
       case 'Cú đêm suy tình':
         gradientColors = [const Color(0xFF8A2387), const Color(0xFFE94057)];
         shadowColor = const Color(0xFFE94057).withOpacity(0.4);
         emoji = '🌙';
+        key = 'badge_night_owl_love';
         break;
       case 'Kẻ hủy diệt nước lọc':
         gradientColors = [const Color(0xFF00B4DB), const Color(0xFF0083B0)];
         shadowColor = const Color(0xFF0083B0).withOpacity(0.4);
         emoji = '🥤';
+        key = 'badge_water_terminator';
         break;
       case 'Bậc thầy xê dịch':
         gradientColors = [const Color(0xFF11998E), const Color(0xFF38EF7D)];
         shadowColor = const Color(0xFF38EF7D).withOpacity(0.4);
         emoji = '👟';
+        key = 'badge_movement_master';
         break;
       case 'Sleeping Beauty':
+        gradientColors = [const Color(0xFFFF758C), const Color(0xFFFF7EB3)];
+        shadowColor = const Color(0xFFFF7EB3).withOpacity(0.4);
+        emoji = '😴';
+        key = 'badge_sleeping_beauty';
+        break;
       case 'Chiến thần ngủ ngon':
         gradientColors = [const Color(0xFFFF758C), const Color(0xFFFF7EB3)];
         shadowColor = const Color(0xFFFF7EB3).withOpacity(0.4);
         emoji = '😴';
+        key = 'badge_sleep_champion';
+        break;
+      case 'Chúa tể ôm giường':
+        gradientColors = [const Color(0xFFF1C40F), const Color(0xFFF39C12)];
+        shadowColor = const Color(0xFFF39C12).withOpacity(0.4);
+        emoji = '🛌';
+        key = 'badge_pillow_lord';
         break;
       case 'Chiến thần KPI':
       default:
         gradientColors = [const Color(0xFFF1C40F), const Color(0xFFF39C12)];
         shadowColor = const Color(0xFFF39C12).withOpacity(0.4);
         emoji = '👑';
+        key = 'badge_kpi_champion';
     }
 
     return Container(
@@ -606,7 +632,7 @@ class _SocialScreenState extends State<SocialScreen> {
           ),
           const SizedBox(width: 4),
           Text(
-            title,
+            context.tr(key),
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w900,
@@ -627,6 +653,7 @@ class _SocialScreenState extends State<SocialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     final auth = context.watch<AuthProvider>();
     final myUid = auth.currentUser?.id ?? '';
     final myFriendCode = auth.currentUser?.friendCode ?? '';
@@ -647,21 +674,21 @@ class _SocialScreenState extends State<SocialScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Cộng đồng',
-                        style: TextStyle(
+                        context.tr('social_title'),
+                        style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'Đọ Pet sức khỏe cùng bè bạn',
-                        style: TextStyle(
+                        context.tr('social_subtitle'),
+                        style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                         ),
@@ -755,7 +782,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                                   fit: BoxFit.scaleDown,
                                                   alignment: Alignment.centerLeft,
                                                   child: Text(
-                                                    auth.userName.isNotEmpty ? auth.userName : 'Người dùng SHCare',
+                                                    auth.userName.isNotEmpty ? auth.userName : context.tr('default_username'),
                                                     style: const TextStyle(
                                                       fontSize: 16,
                                                       fontWeight: FontWeight.w900,
@@ -774,8 +801,8 @@ class _SocialScreenState extends State<SocialScreen> {
                                                       ClipboardData(text: myFriendCode),
                                                     );
                                                     ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Đã sao chép mã kết bạn! 📋'),
+                                                      SnackBar(
+                                                        content: Text(context.tr('copied_friend_code')),
                                                         behavior: SnackBarBehavior.floating,
                                                       ),
                                                     );
@@ -800,7 +827,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                                       ),
                                                       const SizedBox(width: 2),
                                                       Text(
-                                                        myFriendCode.isNotEmpty ? myFriendCode : 'Đang tạo...',
+                                                        myFriendCode.isNotEmpty ? myFriendCode : context.tr('generating'),
                                                         style: const TextStyle(
                                                           fontSize: 11,
                                                           fontWeight: FontWeight.w800,
@@ -888,7 +915,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           _buildHayDayMenuItem(
                             icon: Icons.tag_rounded,
                             iconBgColor: const Color(0xFF3B82F6),
-                            title: 'Kết bạn bằng Player ID',
+                            title: context.tr('add_friend_by_id'),
                             onTap: () {
                               setState(() {
                                 _showIdInput = !_showIdInput;
@@ -916,7 +943,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                               textCapitalization: TextCapitalization.characters,
                                               style: const TextStyle(color: Colors.white, fontSize: 13),
                                               decoration: InputDecoration(
-                                                hintText: 'Nhập mã kết bạn (VD: KHAN99X)...',
+                                                hintText: context.tr('enter_friend_code_placeholder'),
                                                 hintStyle: const TextStyle(
                                                   fontSize: 11,
                                                   color: AppColors.textHint,
@@ -963,9 +990,9 @@ class _SocialScreenState extends State<SocialScreen> {
                                                       color: Colors.white,
                                                     ),
                                                   )
-                                                : const Text(
-                                                    'Kết bạn',
-                                                    style: TextStyle(
+                                                : Text(
+                                                    context.tr('add_friend'),
+                                                    style: const TextStyle(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.bold,
                                                     ),
@@ -983,7 +1010,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           _buildHayDayMenuItem(
                             icon: Icons.qr_code_scanner_rounded,
                             iconBgColor: const Color(0xFF10B981),
-                            title: 'Quét mã QR',
+                            title: context.tr('scan_qr'),
                             onTap: () async {
                               final scannedCode = await Navigator.push<String>(
                                 context,
@@ -1006,7 +1033,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           _buildHayDayMenuItem(
                             icon: Icons.facebook_rounded,
                             iconBgColor: const Color(0xFF1877F2),
-                            title: 'Tìm bạn qua Facebook',
+                            title: context.tr('find_facebook_friends'),
                             onTap: _isMatchingFacebookFriends ? () {} : _handleFacebookFriendMatch,
                             trailing: _isMatchingFacebookFriends
                                 ? const SizedBox(
@@ -1046,18 +1073,18 @@ class _SocialScreenState extends State<SocialScreen> {
                               color: AppColors.textHint.withOpacity(0.5),
                             ),
                             const SizedBox(height: 16),
-                            const Text(
-                              'Kết bạn ngay thôi!',
-                              style: TextStyle(
+                            Text(
+                              context.tr('add_friends_now'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
-                              'Nhập mã của bạn bè để đọ Pet và chọc ghẹo thi đua nhé.',
-                              style: TextStyle(
+                            Text(
+                              context.tr('add_friends_now_desc'),
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textSecondary,
                               ),
@@ -1079,7 +1106,7 @@ class _SocialScreenState extends State<SocialScreen> {
                           },
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
-                            hintText: 'Tìm kiếm bạn bè theo tên...',
+                            hintText: context.tr('search_friends_placeholder'),
                             hintStyle: const TextStyle(fontSize: 12, color: Colors.white38),
                             prefixIcon: const Icon(
                               Icons.search_rounded,
@@ -1124,7 +1151,7 @@ class _SocialScreenState extends State<SocialScreen> {
 
                       // BẢNG XẾP HẠNG THƯỜNG (#4 trở đi)
                       Text(
-                        _searchFriendQuery.isEmpty ? 'Bảng xếp hạng' : 'Kết quả tìm kiếm',
+                        _searchFriendQuery.isEmpty ? context.tr('leaderboard_title') : context.tr('search_results_title'),
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
@@ -1135,13 +1162,13 @@ class _SocialScreenState extends State<SocialScreen> {
                       if (filteredBoard.isEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: const Column(
+                          child: Column(
                             children: [
-                              Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
-                              SizedBox(height: 12),
+                              const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
+                              const SizedBox(height: 12),
                               Text(
-                                'Không tìm thấy bạn bè nào phù hợp',
-                                style: TextStyle(
+                                context.tr('no_friends_found'),
+                                style: const TextStyle(
                                   fontSize: 13,
                                   color: AppColors.textSecondary,
                                   fontWeight: FontWeight.w600,
@@ -1310,14 +1337,14 @@ class _SocialScreenState extends State<SocialScreen> {
       ),
       child: Column(
         children: [
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 18),
-              SizedBox(width: 8),
+              const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
               Text(
-                'Bục vinh quang',
-                style: TextStyle(
+                context.tr('podium_title'),
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                   color: AppColors.textSecondary,
@@ -1540,7 +1567,7 @@ class _SocialScreenState extends State<SocialScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Lời mời kết bạn (${requests.length})',
+                  context.tr('friend_requests', arguments: {'count': '${requests.length}'}),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
@@ -1558,7 +1585,7 @@ class _SocialScreenState extends State<SocialScreen> {
                 final doc = requests[index];
                 final data = doc.data() as Map<String, dynamic>;
                 final requesterId = doc.id;
-                final name = data['sender_name'] as String? ?? 'Người dùng SHCare';
+                final name = data['sender_name'] as String? ?? context.tr('default_username');
                 final avatar = data['sender_avatar'] as String?;
 
                 return Container(
@@ -1625,18 +1652,18 @@ class _SocialScreenState extends State<SocialScreen> {
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.check_rounded,
                                 color: Colors.white,
                                 size: 16,
                               ),
-                              SizedBox(width: 4),
+                              const SizedBox(width: 4),
                               Text(
-                                'Đồng ý',
-                                style: TextStyle(
+                                context.tr('accept'),
+                                style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,

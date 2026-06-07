@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../core/widgets/gif_icon.dart';
 import '../../../models/task_suggestion.dart';
 import '../../home/providers/health_provider.dart';
@@ -16,15 +18,20 @@ class TipsScreen extends StatefulWidget {
 }
 
 class _TipsScreenState extends State<TipsScreen> {
-  String _selectedCategory = 'Tất cả';
+  String? _selectedCategory;
   String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     final healthData = context.watch<HealthProvider>();
-    
-    // Lấy tất cả tip items dựa trên chỉ số động của người dùng
+
+    final categoryAll = context.tr('category_all');
+    _selectedCategory ??= categoryAll;
+
+    // Get all tip items based on user's dynamic metrics
     final tipItems = buildTipItems(
+      context: context,
       steps: healthData.steps,
       goal: healthData.goal,
       waterPercentage: healthData.waterPercentage,
@@ -32,30 +39,30 @@ class _TipsScreenState extends State<TipsScreen> {
       energyLevel: healthData.energyLevel,
     );
 
-    // Lọc tip items dựa trên category và tìm kiếm
+    // Filter tip items based on category and search
     final filteredTipItems = tipItems.where((tip) {
-      final matchesCategory = _selectedCategory == 'Tất cả' || tip.category == _selectedCategory;
+      final matchesCategory = _selectedCategory == categoryAll || tip.category == _selectedCategory;
       final matchesSearch = tip.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           tip.description.toLowerCase().contains(_searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     }).toList();
 
-    // Lấy featured tip từ danh sách đã lọc (nếu trống thì lấy từ danh sách gốc)
-    final featuredTip = filteredTipItems.isNotEmpty 
-        ? filteredTipItems.first 
+    // Get featured tip from filtered list (or original list if empty)
+    final featuredTip = filteredTipItems.isNotEmpty
+        ? filteredTipItems.first
         : (tipItems.isNotEmpty ? tipItems.first : null);
 
     final waterSubtitle = healthData.remainingWaterGlasses == 0
-        ? 'Đủ mục tiêu'
-        : 'Còn ${healthData.remainingWaterGlasses} ly';
+        ? context.tr('tips_water_goal_met')
+        : context.tr('tips_water_remaining').replaceAll('{count}', '${healthData.remainingWaterGlasses}');
     final sleepSubtitle = healthData.energyLevel < 0.55
-        ? 'Ngủ sớm 22:00'
-        : 'Giữ 22:30';
+        ? context.tr('tips_sleep_early')
+        : context.tr('tips_sleep_maintain');
 
-    // Lấy và lọc nhiệm vụ AI dựa trên category và tìm kiếm
+    // Get and filter AI tasks based on category and search
     final activeTasks = healthData.aiTasks;
     final filteredTasks = activeTasks.where((task) {
-      final matchesCategory = _selectedCategory == 'Tất cả' || task.category == _selectedCategory;
+      final matchesCategory = _selectedCategory == categoryAll || task.category == _selectedCategory;
       final matchesSearch = task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           task.description.toLowerCase().contains(_searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
@@ -83,13 +90,13 @@ class _TipsScreenState extends State<TipsScreen> {
                 FeaturedTipCard(
                   title: featuredTip.title,
                   description: featuredTip.description,
-                  ctaLabel: 'Làm ngay',
+                  ctaLabel: context.tr('tips_do_now'),
                   gifAssetPath: featuredTip.gifAssetPath,
                   icon: featuredTip.icon,
                 ),
               const SizedBox(height: 18),
               TipsCategoryChips(
-                selectedCategory: _selectedCategory,
+                selectedCategory: _selectedCategory!,
                 onCategorySelected: (cat) {
                   setState(() {
                     _selectedCategory = cat;
@@ -104,9 +111,9 @@ class _TipsScreenState extends State<TipsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text(
-                        'Nhiệm vụ từ AI',
-                        style: TextStyle(
+                      Text(
+                        context.tr('ai_tasks'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
@@ -153,17 +160,17 @@ class _TipsScreenState extends State<TipsScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: healthData.allTasksCompleted
-                          ? AppColors.primary.withValues(alpha: 0.15)
+                          ? Color(AppColors.primaryHex).withValues(alpha: 0.15)
                           : AppColors.textHint.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${healthData.completedTaskCount}/${activeTasks.length} hoàn thành',
+                      context.tr('tasks_completed_count').replaceAll('{count}', '${healthData.completedTaskCount}/${activeTasks.length}'),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: healthData.allTasksCompleted
-                            ? AppColors.primary
+                            ? Color(AppColors.primaryHex)
                             : AppColors.textHint,
                       ),
                     ),
@@ -226,9 +233,9 @@ class _TipsScreenState extends State<TipsScreen> {
 
               // ─── RULE-BASED TIPS ──────────────────────────────
               const SizedBox(height: 20),
-              const TipsSectionHeader(
-                title: 'Gợi ý theo mục tiêu',
-                actionLabel: 'Cập nhật mới',
+              TipsSectionHeader(
+                title: context.tr('target_tips'),
+                actionLabel: context.tr('tips_updated'),
               ),
               const SizedBox(height: 10),
               if (filteredTipItems.isEmpty)
@@ -236,9 +243,9 @@ class _TipsScreenState extends State<TipsScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   alignment: Alignment.center,
-                  child: const Text(
-                    'Không tìm thấy gợi ý phù hợp.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  child: Text(
+                    context.tr('tips_no_results'),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 )
               else
@@ -249,9 +256,9 @@ class _TipsScreenState extends State<TipsScreen> {
                   ),
                 ),
               const SizedBox(height: 8),
-              const TipsSectionHeader(
-                title: 'Thói quen nhỏ',
-                actionLabel: 'Hôm nay',
+              TipsSectionHeader(
+                title: context.tr('mini_habits'),
+                actionLabel: context.tr('tips_today'),
               ),
               const SizedBox(height: 10),
               Row(
@@ -260,7 +267,7 @@ class _TipsScreenState extends State<TipsScreen> {
                     child: TipsMiniHabitCard(
                       gifAssetPath: AppGifIcons.water,
                       icon: Icons.water_drop_rounded,
-                      title: 'Uống nước',
+                      title: context.tr('water'),
                       subtitle: waterSubtitle,
                       color: AppColors.waterTint,
                       iconColor: AppColors.waterIcon,
@@ -271,7 +278,7 @@ class _TipsScreenState extends State<TipsScreen> {
                     child: TipsMiniHabitCard(
                       gifAssetPath: AppGifIcons.sleep,
                       icon: Icons.bedtime_rounded,
-                      title: 'Giờ ngủ',
+                      title: context.tr('last_night_sleep'),
                       subtitle: sleepSubtitle,
                       color: AppColors.sleepTint,
                       iconColor: AppColors.sleepIcon,
@@ -299,13 +306,13 @@ class _TipsScreenState extends State<TipsScreen> {
             borderRadius: BorderRadius.circular(AppColors.radiusMd),
             border: Border.all(color: AppColors.cardBorder),
           ),
-          child: const Center(
+          child: Center(
             child: SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: AppColors.primary,
+                color: Color(AppColors.primaryHex),
               ),
             ),
           ),
@@ -326,15 +333,15 @@ class _TipsScreenState extends State<TipsScreen> {
       ),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.auto_awesome_rounded,
             size: 36,
-            color: AppColors.primary,
+            color: Color(AppColors.primaryHex),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Không tìm thấy nhiệm vụ nào.',
-            style: TextStyle(
+          Text(
+            context.tr('tips_no_tasks'),
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
@@ -342,9 +349,9 @@ class _TipsScreenState extends State<TipsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _searchQuery.isNotEmpty 
-                ? 'Thử tìm kiếm với từ khóa khác.'
-                : 'Thử chọn danh mục khác hoặc chờ AI tạo nhiệm vụ mới.',
+            _searchQuery.isNotEmpty
+                ? context.tr('tips_try_other_keyword')
+                : context.tr('tips_try_other_category'),
             style: const TextStyle(
               fontSize: 12,
               color: AppColors.textHint,
@@ -393,8 +400,8 @@ class _AiTaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = _typeIcons[task.type] ?? Icons.auto_awesome_rounded;
-    final bgColor = _typeColors[task.type] ?? AppColors.fireTint;
-    final iconColor = _typeIconColors[task.type] ?? AppColors.fireIcon;
+    final bgColor = Color((_typeColors[task.type] ?? AppColors.fireTint).value);
+    final iconColor = Color((_typeIconColors[task.type] ?? AppColors.fireIcon).value);
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -422,7 +429,7 @@ class _AiTaskCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icon theo type
+            // Icon by type
             Container(
               width: 44,
               height: 44,
@@ -434,7 +441,7 @@ class _AiTaskCard extends StatelessWidget {
               child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(width: 14),
-            // Nội dung
+            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,18 +557,18 @@ class _AiTaskCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.check_rounded,
                                       size: 12,
                                       color: Colors.black87,
                                     ),
-                                    SizedBox(width: 3),
+                                    const SizedBox(width: 3),
                                     Text(
-                                      'Hoàn thành',
-                                      style: TextStyle(
+                                      context.tr('completed_label'),
+                                      style: const TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.black87,
@@ -582,18 +589,18 @@ class _AiTaskCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: Colors.white24, width: 1.0),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.check_circle_outline_rounded,
                                     size: 12,
                                     color: Colors.white38,
                                   ),
-                                  SizedBox(width: 3),
+                                  const SizedBox(width: 3),
                                   Text(
-                                    'Đã xong',
-                                    style: TextStyle(
+                                    context.tr('well_done'),
+                                    style: const TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white38,

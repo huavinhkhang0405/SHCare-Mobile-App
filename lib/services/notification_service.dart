@@ -62,4 +62,9 @@ class NotificationService {
       notificationDetails: notificationDetails,
     );
   }
+
+  static Future<void> cancelAllPendingNotifications() async {
+    await _localNotificationsPlugin.cancelAll();
+  }
 }
+

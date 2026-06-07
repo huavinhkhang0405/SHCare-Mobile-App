@@ -10,8 +10,10 @@ import 'app.dart';
 import 'core/providers/audio_provider.dart';
 import 'features/home/providers/health_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/settings_provider.dart';
 import 'services/screen_time_service.dart';
 import 'services/notification_service.dart';
+
 
 /* =========================================================
    FILE: main.dart
@@ -71,6 +73,10 @@ Future<void> main() async {
      hoặc trước khi khởi tạo Firebase
   */
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Khởi tạo SettingsProvider và nạp cấu hình hệ thống
+  final settingsProvider = SettingsProvider();
+  await settingsProvider.init();
 
   // Khởi tạo Workmanager cho dịch vụ chạy nền
   try {
@@ -154,6 +160,7 @@ Future<void> main() async {
 
         // Ví dụ:
         // ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider.value(value: settingsProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AudioProvider()),
         ChangeNotifierProxyProvider<AuthProvider, HealthProvider>(

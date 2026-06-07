@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../utils/date_formatter.dart';
+import '../../../core/config/app_localizations.dart';
 
 class GreetingSection extends StatelessWidget {
   final String name;
@@ -10,7 +11,7 @@ class GreetingSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final greeting = DateFormatter.greetingVi(DateFormatter.nowLocal());
+    final greeting = DateFormatter.greeting(DateFormatter.nowLocal(), context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -21,7 +22,7 @@ class GreetingSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Hôm nay là một ngày tuyệt vời để chăm sóc bản thân.',
+          context.tr('greeting_subtitle'),
           style: textTheme.bodyMedium,
         ),
       ],

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
+import '../../../providers/settings_provider.dart';
 import '../../home/providers/health_provider.dart';
 import '../widgets/health_score_card.dart';
 import '../widgets/sleep_stage_visualizer.dart';
@@ -12,6 +14,7 @@ class StatsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     final healthData = context.watch<HealthProvider>();
 
     return Scaffold(
@@ -29,9 +32,9 @@ class StatsScreen extends StatelessWidget {
                 message: healthData.healthScoreMessage,
               ),
               const SizedBox(height: 20),
-              const StatsSectionHeader(
-                title: 'Chỉ số nổi bật',
-                actionLabel: 'Tuần này',
+              StatsSectionHeader(
+                title: context.tr('highlight_metrics'),
+                actionLabel: context.tr('this_week'),
               ),
               const SizedBox(height: 10),
               StatsInsightGrid(
@@ -45,9 +48,9 @@ class StatsScreen extends StatelessWidget {
                 deepSleepDeltaMinutes: healthData.deepSleepDeltaMinutes,
               ),
               const SizedBox(height: 20),
-              const StatsSectionHeader(
-                title: 'Chỉ số cơ thể & Chuyển hóa',
-                actionLabel: 'Định lượng y khoa',
+              StatsSectionHeader(
+                title: context.tr('body_metrics'),
+                actionLabel: context.tr('medical_metrics'),
               ),
               const SizedBox(height: 10),
               StatsBodyMetricsCard(
@@ -61,9 +64,9 @@ class StatsScreen extends StatelessWidget {
                 targetCalories: healthData.targetCalories,
               ),
               const SizedBox(height: 20),
-              const StatsSectionHeader(
-                title: 'Xu hướng 7 ngày',
-                actionLabel: 'So với tuần trước',
+              StatsSectionHeader(
+                title: context.tr('weekly_trends'),
+                actionLabel: context.tr('vs_last_week'),
               ),
               const SizedBox(height: 10),
               StatsWeeklyActivityCard(

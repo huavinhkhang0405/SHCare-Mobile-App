@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../../core/theme/app_colors.dart';
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
@@ -100,7 +101,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       width: 260,
                       height: 260,
                       decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4), width: 2),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 2),
                         borderRadius: BorderRadius.circular(32),
                       ),
                     ),
@@ -112,7 +113,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         border: Border.all(color: Colors.transparent),
                       ),
                       child: CustomPaint(
-                        painter: ScannerOverlayPainter(),
+                        painter: ScannerOverlayPainter(color: AppColors.primary),
                       ),
                     ),
                   ],
@@ -143,10 +144,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 }
 
 class ScannerOverlayPainter extends CustomPainter {
+  final Color color;
+  ScannerOverlayPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF10B981)
+      ..color = color
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;

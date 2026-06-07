@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../../models/diary_entry.dart';
 
 class JournalHistoryCard extends StatelessWidget {
@@ -13,26 +14,26 @@ class JournalHistoryCard extends StatelessWidget {
   final VoidCallback onDelete;
 
   // Cấu hình hiển thị theo chỉ số tâm trạng
-  Map<String, dynamic> _getMoodConfig(int index) {
+  Map<String, dynamic> _getMoodConfig(BuildContext context, int index) {
     switch (index) {
       case 0:
         return {
           'emoji': '😄',
-          'label': 'Rất tốt',
+          'label': context.tr('mood_very_good'),
           'bgColor': const Color(0xFFE7F7EE),
           'textColor': const Color(0xFF1B5E20),
         };
       case 1:
         return {
           'emoji': '🙂',
-          'label': 'Ổn định',
+          'label': context.tr('mood_stable'),
           'bgColor': const Color(0xFFEAF5FF),
           'textColor': const Color(0xFF0D47A1),
         };
       case 2:
         return {
           'emoji': '😐',
-          'label': 'Bình thường',
+          'label': context.tr('mood_normal'),
           'bgColor': const Color(0xFFFFF4E4),
           'textColor': const Color(0xFFE65100),
         };
@@ -40,22 +41,22 @@ class JournalHistoryCard extends StatelessWidget {
       default:
         return {
           'emoji': '😣',
-          'label': 'Căng thẳng',
+          'label': context.tr('mood_stressed'),
           'bgColor': const Color(0xFFFFEBEC),
           'textColor': const Color(0xFFB71C1C),
         };
     }
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(BuildContext context, DateTime date) {
     final weekdays = [
-      'Thứ Hai',
-      'Thứ Ba',
-      'Thứ Tư',
-      'Thứ Năm',
-      'Thứ Sáu',
-      'Thứ Bảy',
-      'Chủ nhật'
+      context.tr('weekday_full_1'),
+      context.tr('weekday_full_2'),
+      context.tr('weekday_full_3'),
+      context.tr('weekday_full_4'),
+      context.tr('weekday_full_5'),
+      context.tr('weekday_full_6'),
+      context.tr('weekday_full_7'),
     ];
     final wDay = weekdays[date.weekday - 1];
     final day = date.day.toString().padLeft(2, '0');
@@ -69,27 +70,27 @@ class JournalHistoryCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: const Color(0xFF111827), // Nền tối ăn khớp login screen
-        title: const Row(
+        backgroundColor: const Color(0xFF111827),
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
-            SizedBox(width: 10),
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+            const SizedBox(width: 10),
             Text(
-              'Xác nhận xóa',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              context.tr('confirm_delete'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: const Text(
-          'Bạn có chắc chắn muốn xóa nhật ký sức khỏe của ngày này không? Hành động này không thể hoàn tác.',
-          style: TextStyle(color: Colors.white70, height: 1.4),
+        content: Text(
+          context.tr('delete_diary_confirm_desc'),
+          style: const TextStyle(color: Colors.white70, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Hủy',
-              style: TextStyle(color: Colors.white60, fontWeight: FontWeight.w600),
+            child: Text(
+              context.tr('cancel'),
+              style: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w600),
             ),
           ),
           FilledButton(
@@ -101,9 +102,9 @@ class JournalHistoryCard extends StatelessWidget {
               backgroundColor: Colors.redAccent,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text(
-              'Xóa',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            child: Text(
+              context.tr('delete'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -113,8 +114,8 @@ class JournalHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final moodCfg = _getMoodConfig(entry.moodIndex);
-    final formattedDate = _formatDate(entry.date);
+    final moodCfg = _getMoodConfig(context, entry.moodIndex);
+    final formattedDate = _formatDate(context, entry.date);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -220,7 +221,7 @@ class JournalHistoryCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Năng lượng: ${(entry.energyLevel * 100).round()}%',
+                            '${context.tr('energy_label')}: ${(entry.energyLevel * 100).round()}%',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -245,28 +246,28 @@ class JournalHistoryCard extends StatelessWidget {
                             icon: Icons.directions_walk_rounded,
                             iconColor: Colors.blueAccent,
                             value: '${entry.stepCount}',
-                            label: 'bước',
+                            label: context.tr('steps_unit'),
                           ),
                           _buildVitalItem(
                             width: itemWidth,
                             icon: Icons.local_drink_rounded,
                             iconColor: AppColors.waterIcon,
                             value: '${(entry.waterIntakeLiters).toStringAsFixed(1)}L',
-                            label: 'nước',
+                            label: context.tr('water_unit'),
                           ),
                           _buildVitalItem(
                             width: itemWidth,
                             icon: Icons.nights_stay_rounded,
                             iconColor: Colors.deepPurpleAccent,
                             value: '${entry.sleepMinutes ~/ 60}h${entry.sleepMinutes % 60}m',
-                            label: 'ngủ',
+                            label: context.tr('sleep_unit'),
                           ),
                           _buildVitalItem(
                             width: itemWidth,
                             icon: Icons.restaurant_menu_rounded,
                             iconColor: Colors.orangeAccent,
                             value: '${entry.consumedCalories}',
-                            label: 'kcal nạp',
+                            label: context.tr('calories_intake'),
                           ),
                         ],
                       );
@@ -277,9 +278,9 @@ class JournalHistoryCard extends StatelessWidget {
                   if (entry.symptoms.isNotEmpty &&
                       !entry.symptoms.contains('Không có')) ...[
                     const SizedBox(height: 16),
-                    const Text(
-                      'Triệu chứng ghi nhận:',
-                      style: TextStyle(
+                    Text(
+                      context.tr('recorded_symptoms'),
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textHint,
@@ -321,9 +322,9 @@ class JournalHistoryCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Món ăn đã nạp:',
-                          style: TextStyle(
+                        Text(
+                          context.tr('consumed_foods'),
+                          style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textHint,
@@ -351,18 +352,18 @@ class JournalHistoryCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primarySurface.withValues(alpha: 0.06),
+                            color: Color(AppColors.primarySurfaceHex).withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.15),
+                              color: Color(AppColors.primaryHex).withValues(alpha: 0.15),
                             ),
                           ),
                           child: Text(
                             food,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.primaryDark,
+                              color: Color(AppColors.primaryDarkHex),
                             ),
                           ),
                         );
@@ -390,13 +391,13 @@ class JournalHistoryCard extends StatelessWidget {
                             children: [
                               Icon(
                                 Icons.format_quote_rounded,
-                                color: AppColors.primary.withValues(alpha: 0.5),
+                                color: Color(AppColors.primaryHex).withValues(alpha: 0.5),
                                 size: 16,
                               ),
                               const SizedBox(width: 4),
-                              const Text(
-                                'Ghi chú',
-                                style: TextStyle(
+                              Text(
+                                context.tr('note'),
+                                style: const TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.textHint,

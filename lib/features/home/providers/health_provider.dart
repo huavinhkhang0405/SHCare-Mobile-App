@@ -302,6 +302,8 @@ class HealthProvider extends ChangeNotifier {
                 message = '$senderName vừa chọc bạn một cái!';
               }
 
+              _latestPokeSender = senderName;
+              _latestPokeType = pokeType;
               _latestPokeMessage = message;
               notifyListeners();
 
@@ -438,10 +440,17 @@ class HealthProvider extends ChangeNotifier {
 
   StreamSubscription<QuerySnapshot>? _pokeSubscription;
   String? _latestPokeMessage;
+  String? _latestPokeSender;
+  String? _latestPokeType;
+
   String? get latestPokeMessage => _latestPokeMessage;
+  String? get latestPokeSender => _latestPokeSender;
+  String? get latestPokeType => _latestPokeType;
 
   void clearLatestPokeMessage() {
     _latestPokeMessage = null;
+    _latestPokeSender = null;
+    _latestPokeType = null;
     notifyListeners();
   }
 
