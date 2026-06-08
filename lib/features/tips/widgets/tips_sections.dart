@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../../core/widgets/gif_icon.dart';
 
 class TipItem {
@@ -25,122 +26,122 @@ class TipItem {
   final Color iconColor;
 }
 
-const List<TipItem> allHealthTips = [
+List<TipItem> getAllHealthTips(BuildContext context) => [
   TipItem(
-    title: 'Bổ sung nước ngay',
-    description: 'Uống 1 ly nước 250ml giúp tăng cường trao đổi chất, cấp ẩm và duy trì sự tỉnh táo.',
-    duration: '2 phút',
-    category: 'Dinh dưỡng',
+    title: context.tr('tip_water_title'),
+    description: context.tr('tip_water_desc'),
+    duration: '2 min',
+    category: context.tr('category_nutrition'),
     gifAssetPath: AppGifIcons.water,
     icon: Icons.water_drop_rounded,
     color: AppColors.waterTint,
     iconColor: AppColors.waterIcon,
   ),
   TipItem(
-    title: 'Ăn thêm chất xơ',
-    description: 'Bổ sung rau xanh hoặc các loại hạt vào bữa chính giúp tiêu hóa tốt hơn và no lâu.',
-    duration: '5 phút',
-    category: 'Dinh dưỡng',
+    title: context.tr('tip_fiber_title'),
+    description: context.tr('tip_fiber_desc'),
+    duration: '5 min',
+    category: context.tr('category_nutrition'),
     gifAssetPath: AppGifIcons.tips,
     icon: Icons.restaurant_rounded,
     color: AppColors.fireTint,
     iconColor: AppColors.fireIcon,
   ),
   TipItem(
-    title: 'Bữa phụ chống mệt mỏi',
-    description: 'Sữa chua Hy Lạp và trái cây ít đường là lựa chọn nhẹ, dễ tiêu và ổn định năng lượng.',
-    duration: '5 phút',
-    category: 'Dinh dưỡng',
+    title: context.tr('tip_yogurt_title'),
+    description: context.tr('tip_yogurt_desc'),
+    duration: '5 min',
+    category: context.tr('category_nutrition'),
     gifAssetPath: AppGifIcons.tips,
     icon: Icons.restaurant_rounded,
     color: AppColors.fireTint,
     iconColor: AppColors.fireIcon,
   ),
   TipItem(
-    title: 'Đi bộ sau bữa ăn',
-    description: 'Đi bộ nhẹ nhàng từ 10-15 phút giúp làm giảm lượng đường trong máu và hỗ trợ tiêu hóa.',
-    duration: '15 phút',
-    category: 'Vận động',
+    title: context.tr('tip_walk_title'),
+    description: context.tr('tip_walk_desc'),
+    duration: '15 min',
+    category: context.tr('category_exercise'),
     gifAssetPath: AppGifIcons.walk,
     icon: Icons.directions_walk_rounded,
     color: AppColors.primarySurface,
     iconColor: AppColors.primary,
   ),
   TipItem(
-    title: 'Giãn cơ cổ vai gáy',
-    description: 'Chu kỳ giãn cơ 5 phút giúp giảm mỏi cổ, vai gáy do ngồi làm việc sai tư thế trong thời gian dài.',
-    duration: '5 phút',
-    category: 'Vận động',
+    title: context.tr('tip_stretch_title'),
+    description: context.tr('tip_stretch_desc'),
+    duration: '5 min',
+    category: context.tr('category_exercise'),
     gifAssetPath: AppGifIcons.walk,
     icon: Icons.accessibility_new_rounded,
     color: AppColors.boltTint,
     iconColor: AppColors.boltIcon,
   ),
   TipItem(
-    title: 'Tập Squat nhẹ nhàng',
-    description: 'Thực hiện 10-15 lượt Squat tại chỗ giúp kích hoạt các nhóm cơ lớn ở phần thân dưới.',
-    duration: '3 phút',
-    category: 'Vận động',
+    title: context.tr('tip_squat_title'),
+    description: context.tr('tip_squat_desc'),
+    duration: '3 min',
+    category: context.tr('category_exercise'),
     gifAssetPath: AppGifIcons.walk,
     icon: Icons.fitness_center_rounded,
     color: AppColors.primarySurface,
     iconColor: AppColors.primary,
   ),
   TipItem(
-    title: 'Thở 4-7-8 thư giãn',
-    description: 'Hít vào 4 giây, giữ hơi 7 giây, thở ra 8 giây giúp hạ căng thẳng và điều hòa nhịp tim.',
-    duration: '3 phút',
-    category: 'Tinh thần',
+    title: context.tr('tip_breath_title'),
+    description: context.tr('tip_breath_desc'),
+    duration: '3 min',
+    category: context.tr('category_mental'),
     gifAssetPath: AppGifIcons.meditate,
     icon: Icons.self_improvement_rounded,
     color: AppColors.sleepTint,
     iconColor: AppColors.sleepIcon,
   ),
   TipItem(
-    title: 'Thiền chánh niệm ngắn',
-    description: 'Nhắm mắt và tập trung hoàn toàn vào luồng thở giúp cải thiện sự tập trung và giảm lo âu.',
-    duration: '5 phút',
-    category: 'Tinh thần',
+    title: context.tr('tip_meditate_title'),
+    description: context.tr('tip_meditate_desc'),
+    duration: '5 min',
+    category: context.tr('category_mental'),
     gifAssetPath: AppGifIcons.meditate,
     icon: Icons.self_improvement_rounded,
     color: AppColors.sleepTint,
     iconColor: AppColors.sleepIcon,
   ),
   TipItem(
-    title: 'Rời xa màn hình 5 phút',
-    description: 'Áp dụng quy tắc 20-20-20: nhìn xa 20 feet (6m) trong 20 giây để giảm mỏi mắt điều tiết.',
-    duration: '5 phút',
-    category: 'Tinh thần',
+    title: context.tr('tip_screen_title'),
+    description: context.tr('tip_screen_desc'),
+    duration: '5 min',
+    category: context.tr('category_mental'),
     gifAssetPath: AppGifIcons.search,
     icon: Icons.remove_red_eye_rounded,
     color: AppColors.boltTint,
     iconColor: AppColors.boltIcon,
   ),
   TipItem(
-    title: 'Tắt thiết bị trước khi ngủ',
-    description: 'Tắt điện thoại, máy tính 30 phút trước khi ngủ giúp não tiết melatonin dễ ngủ hơn.',
-    duration: '30 phút',
-    category: 'Ngủ',
+    title: context.tr('tip_device_title'),
+    description: context.tr('tip_device_desc'),
+    duration: '30 min',
+    category: context.tr('category_sleep'),
     gifAssetPath: AppGifIcons.sleep,
     icon: Icons.nights_stay_rounded,
     color: AppColors.sleepTint,
     iconColor: AppColors.sleepIcon,
   ),
   TipItem(
-    title: 'Nghe tiếng ồn nâu (Brown Noise)',
-    description: 'Nghe âm thanh tần số thấp như tiếng mưa, tiếng sóng giúp não bộ tĩnh tâm và chìm sâu vào giấc ngủ.',
-    duration: '15 phút',
-    category: 'Ngủ',
+    title: context.tr('tip_brownnoise_title'),
+    description: context.tr('tip_brownnoise_desc'),
+    duration: '15 min',
+    category: context.tr('category_sleep'),
     gifAssetPath: AppGifIcons.sleep,
     icon: Icons.music_note_rounded,
     color: AppColors.sleepTint,
     iconColor: AppColors.sleepIcon,
   ),
   TipItem(
-    title: 'Thư giãn cơ trước ngủ',
-    description: 'Căng rồi thả lỏng từng nhóm cơ từ ngón chân lên đầu giúp giải phóng căng thẳng vật lý tích tụ.',
-    duration: '10 phút',
-    category: 'Ngủ',
+    title: context.tr('tip_muscle_title'),
+    description: context.tr('tip_muscle_desc'),
+    duration: '10 min',
+    category: context.tr('category_sleep'),
     gifAssetPath: AppGifIcons.sleep,
     icon: Icons.nightlight_round,
     color: AppColors.sleepTint,
@@ -149,6 +150,7 @@ const List<TipItem> allHealthTips = [
 ];
 
 List<TipItem> buildTipItems({
+  required BuildContext context,
   required int steps,
   required int goal,
   required int waterPercentage,
@@ -161,15 +163,15 @@ List<TipItem> buildTipItems({
   final remainingSteps = (goal - steps).clamp(0, goal).toInt();
   final walkMinutes = (remainingSteps / 350).ceil().clamp(8, 20).toInt();
 
-  // 1. Ưu tiên các gợi ý rule-based khẩn cấp
+  // 1. Priority rule-based urgent tips
   if (waterPercentage < 80) {
     final remainingPercent = (100 - waterPercentage).clamp(0, 100);
     tips.add(
       TipItem(
-        title: 'Bổ dung nước ngay',
-        description: 'Bạn còn thiếu $remainingPercent% mục tiêu nước. Thêm 1 ly 250ml sẽ giúp tỉnh táo hơn.',
-        duration: '2 phút',
-        category: 'Dinh dưỡng',
+        title: context.tr('tip_water_dynamic_title'),
+        description: context.tr('tip_water_dynamic_desc').replaceAll('{percent}', '$remainingPercent'),
+        duration: '2 min',
+        category: context.tr('category_nutrition'),
         gifAssetPath: AppGifIcons.water,
         icon: Icons.water_drop_rounded,
         color: AppColors.waterTint,
@@ -181,10 +183,11 @@ List<TipItem> buildTipItems({
   if (stepProgress < 0.9) {
     tips.add(
       TipItem(
-        title: 'Đi bộ thêm $remainingSteps bước',
-        description: 'Bạn đã đạt ${(stepProgress * 100).round()}% mục tiêu. Đi bộ nhẹ sẽ giúp cải thiện chuyển hóa.',
-        duration: '$walkMinutes phút',
-        category: 'Vận động',
+        title: context.tr('tip_walk_dynamic_title').replaceAll('{steps}', '$remainingSteps'),
+        description: context.tr('tip_walk_dynamic_desc')
+            .replaceAll('{percent}', '${(stepProgress * 100).round()}'),
+        duration: '$walkMinutes min',
+        category: context.tr('category_exercise'),
         gifAssetPath: AppGifIcons.walk,
         icon: Icons.directions_walk_rounded,
         color: AppColors.primarySurface,
@@ -196,10 +199,10 @@ List<TipItem> buildTipItems({
   if (bpm > 80 || energyLevel < 0.55) {
     tips.add(
       TipItem(
-        title: 'Thở 4-7-8 trong 3 phút',
-        description: 'Nhịp tim hiện tại $bpm bpm. Bài thở chậm giúp cơ thể hạ căng thẳng nhanh.',
-        duration: '3 phút',
-        category: 'Tinh thần',
+        title: context.tr('tip_breath_dynamic_title'),
+        description: context.tr('tip_breath_dynamic_desc').replaceAll('{bpm}', '$bpm'),
+        duration: '3 min',
+        category: context.tr('category_mental'),
         gifAssetPath: AppGifIcons.meditate,
         icon: Icons.self_improvement_rounded,
         color: AppColors.sleepTint,
@@ -208,8 +211,9 @@ List<TipItem> buildTipItems({
     );
   }
 
-  // 2. Điền thêm từ kho dữ liệu tips cho đủ tối thiểu 3 tips (không trùng lặp tiêu đề)
-  for (final candidate in allHealthTips) {
+  // 2. Fill up to minimum 3 tips from the static list (no duplicate titles)
+  final allTips = getAllHealthTips(context);
+  for (final candidate in allTips) {
     if (tips.length >= 3) break;
     final alreadyAdded = tips.any((t) => t.title == candidate.title);
     if (!alreadyAdded) {
@@ -225,21 +229,21 @@ class TipsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Gợi ý thông minh',
-          style: TextStyle(
+          context.tr('smart_tips_title'),
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
             color: AppColors.textPrimary,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
-          'Lựa chọn những hành động nhỏ để chăm sóc sức khỏe tốt hơn.',
-          style: TextStyle(
+          context.tr('tips_header_subtitle'),
+          style: const TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,
           ),
@@ -280,15 +284,15 @@ class TipsSearchBar extends StatelessWidget {
             child: TextField(
               onChanged: onChanged,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Tìm mẹo về ăn uống, vận động, giấc ngủ...',
-                hintStyle: TextStyle(
+              decoration: InputDecoration(
+                hintText: context.tr('tips_search_placeholder'),
+                hintStyle: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textHint,
                 ),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
@@ -310,7 +314,13 @@ class TipsCategoryChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const categories = ['Tất cả', 'Dinh dưỡng', 'Vận động', 'Tinh thần', 'Ngủ'];
+    final categories = [
+      context.tr('category_all'),
+      context.tr('category_nutrition'),
+      context.tr('category_exercise'),
+      context.tr('category_mental'),
+      context.tr('category_sleep'),
+    ];
 
     return SizedBox(
       height: 36,
@@ -326,15 +336,15 @@ class TipsCategoryChips extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.cardBg,
+                color: isSelected ? Color(AppColors.primaryHex) : AppColors.cardBg,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.cardBorder,
+                  color: isSelected ? Color(AppColors.primaryHex) : AppColors.cardBorder,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.25),
+                          color: Color(AppColors.primaryHex).withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -382,10 +392,10 @@ class TipsSectionHeader extends StatelessWidget {
         ),
         Text(
           actionLabel,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: Color(AppColors.primaryHex),
           ),
         ),
       ],
@@ -421,13 +431,13 @@ class TipActionCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: item.color,
+                  color: Color(item.color.value),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: GifIcon(
                   assetPath: item.gifAssetPath,
                   fallbackIcon: item.icon,
-                  fallbackColor: item.iconColor,
+                  fallbackColor: Color(item.iconColor.value),
                 ),
               ),
               const SizedBox(width: 14),
@@ -461,15 +471,15 @@ class TipActionCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primarySurface,
+                            color: Color(AppColors.primarySurfaceHex),
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(
                             item.category,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
+                              color: Color(AppColors.primaryHex),
                             ),
                           ),
                         ),
@@ -543,13 +553,13 @@ class TipsMiniHabitCard extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color,
+              color: Color(color.value),
               borderRadius: BorderRadius.circular(12),
             ),
             child: GifIcon(
               assetPath: gifAssetPath,
               fallbackIcon: icon,
-              fallbackColor: iconColor,
+              fallbackColor: Color(iconColor.value),
               size: 20,
             ),
           ),

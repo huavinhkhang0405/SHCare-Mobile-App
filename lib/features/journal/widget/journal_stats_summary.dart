@@ -71,32 +71,32 @@ class JournalStatsSummary extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.15),
-            AppColors.primary.withValues(alpha: 0.05),
+            Color(AppColors.primaryHex).withValues(alpha: 0.15),
+            Color(AppColors.primaryHex).withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppColors.radiusMd),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+        border: Border.all(color: Color(AppColors.primaryHex).withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(
                 Icons.analytics_rounded,
-                color: AppColors.primary,
+                color: Color(AppColors.primaryHex),
                 size: 20,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 'Tổng quan sức khỏe (30 ngày qua)',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.primaryDark,
+                  color: Color(AppColors.primaryDarkHex),
                 ),
               ),
             ],

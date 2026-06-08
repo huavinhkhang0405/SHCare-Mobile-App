@@ -7,8 +7,8 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: 'PlusJakartaSans',
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        primary: AppColors.primary,
+        seedColor: Color(AppColors.primaryHex),
+        primary: Color(AppColors.primaryHex),
         onPrimary: AppColors.textOnPrimary,
         surface: AppColors.scaffoldBg,
         onSurface: AppColors.textPrimary,
@@ -32,50 +32,50 @@ class AppTheme {
       ),
 
       // ─── Typography ───────────────────────────────────
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
+      textTheme: TextTheme(
+        displayLarge: const TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.w800,
           color: AppColors.textPrimary,
           letterSpacing: -0.5,
         ),
-        headlineLarge: TextStyle(
+        headlineLarge: const TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.w900,
           color: AppColors.textPrimary,
           letterSpacing: -0.3,
         ),
-        headlineMedium: TextStyle(
+        headlineMedium: const TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w800,
           color: AppColors.textPrimary,
         ),
-        headlineSmall: TextStyle(
+        headlineSmall: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w800,
           color: AppColors.textPrimary,
         ),
-        titleLarge: TextStyle(
+        titleLarge: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
-        titleMedium: TextStyle(
+        titleMedium: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        bodyLarge: TextStyle(
+        bodyLarge: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w500,
           color: AppColors.textSecondary,
         ),
-        bodyMedium: TextStyle(
+        bodyMedium: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
           color: AppColors.textSecondary,
         ),
-        bodySmall: TextStyle(
+        bodySmall: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: AppColors.textHint,
@@ -83,7 +83,7 @@ class AppTheme {
         labelLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppColors.primary,
+          color: Color(AppColors.primaryHex),
         ),
       ),
 
@@ -92,12 +92,12 @@ class AppTheme {
         backgroundColor: AppColors.navBarBg,
         elevation: 0,
         height: 72,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.1),
+        indicatorColor: Color(AppColors.primaryHex).withValues(alpha: 0.1),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
+            return TextStyle(
               fontFamily: 'PlusJakartaSans',
-              color: AppColors.primary,
+              color: Color(AppColors.primaryHex),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             );
@@ -111,7 +111,7 @@ class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.primary, size: 24);
+            return IconThemeData(color: Color(AppColors.primaryHex), size: 24);
           }
           return const IconThemeData(
             color: AppColors.navBarInactive,
@@ -133,7 +133,7 @@ class AppTheme {
       // ─── Filled Button ────────────────────────────────
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: Color(AppColors.primaryHex),
           foregroundColor: AppColors.textOnPrimary,
           textStyle: const TextStyle(
             fontFamily: 'PlusJakartaSans',
@@ -167,7 +167,7 @@ class AppTheme {
       // ─── Elevated Button ──────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: Color(AppColors.primaryHex),
           foregroundColor: AppColors.textOnPrimary,
           elevation: 0,
           textStyle: const TextStyle(
@@ -205,7 +205,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppColors.radiusMd),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: Color(AppColors.primaryHex), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppColors.radiusMd),
@@ -215,16 +215,16 @@ class AppTheme {
 
       // ─── Slider ───────────────────────────────────────
       sliderTheme: SliderThemeData(
-        activeTrackColor: AppColors.primary,
-        inactiveTrackColor: AppColors.primary.withValues(alpha: 0.15),
-        thumbColor: AppColors.primary,
-        overlayColor: AppColors.primary.withValues(alpha: 0.1),
+        activeTrackColor: Color(AppColors.primaryHex),
+        inactiveTrackColor: Color(AppColors.primaryHex).withValues(alpha: 0.15),
+        thumbColor: Color(AppColors.primaryHex),
+        overlayColor: Color(AppColors.primaryHex).withValues(alpha: 0.1),
       ),
 
       // ─── Chip ─────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.cardBg,
-        selectedColor: AppColors.primarySurface,
+        selectedColor: Color(AppColors.primarySurfaceHex),
         labelStyle: const TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontSize: 12,

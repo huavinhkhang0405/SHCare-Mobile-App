@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/settings_provider.dart';
+
 
 /* =========================================================
    FILE: animated_splash_screen.dart
@@ -165,7 +167,13 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
 
         // Xác định đích đến
         if (auth.currentUser?.isOnboarded == true) {
-          _destinationRoute = '/main';
+          if (!mounted) return;
+          final settings = context.read<SettingsProvider>();
+          if (settings.pinLockEnabled) {
+            _destinationRoute = '/security-lock';
+          } else {
+            _destinationRoute = '/main';
+          }
         } else {
           _destinationRoute = '/onboarding';
         }
@@ -373,11 +381,11 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
               shaderCallback: (bounds) {
                 return LinearGradient(
                   colors: const [
-                    Color(0xFFE8FAF3), // Sáng nhạt
+                    AppColors.primarySurface, // Sáng nhạt
                     Color(0xFFFFFFFF), // Trắng tinh (điểm sáng shimmer)
-                    Color(0xFF6FDCBA), // Xanh lá nhạt
+                    AppColors.primaryLight, // Xanh lá nhạt
                     Color(0xFFFFFFFF), // Trắng tinh
-                    Color(0xFFE8FAF3), // Sáng nhạt
+                    AppColors.primarySurface, // Sáng nhạt
                   ],
                   stops: _calculateShimmerStops(_shimmerSlide.value),
                   begin: Alignment.centerLeft,

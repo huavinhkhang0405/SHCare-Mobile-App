@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/config/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
 import '../../../providers/auth_provider.dart';
@@ -26,23 +27,23 @@ class StatsHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Thống kê sức khỏe',
-                style: TextStyle(
+                context.tr('stats_health_title'),
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
                   color: AppColors.textPrimary,
                   fontFamily: 'Inter',
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
-                'Theo dõi tiến độ và xu hướng của bạn',
-                style: TextStyle(
+                context.tr('stats_health_desc'),
+                style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
                   fontFamily: 'Inter',
@@ -71,7 +72,7 @@ class StatsHeader extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Tuần ${_getWeekOfYear(createdAt)}',
+                context.tr('week_number', arguments: {'number': _getWeekOfYear(createdAt).toString()}),
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -171,16 +172,16 @@ class StatsInsightGrid extends StatelessWidget {
           iconColor: AppColors.boltIcon,
         ),
         _StatsInsightCard(
-          title: 'Nghỉ ngơi',
+          title: context.tr('resting_heart_rate'),
           value: '$restingBpm bpm',
-          delta: restingStatus,
+          delta: restingStatus == 'Ổn định' ? context.tr('stable') : (restingStatus == 'Cần nghỉ' ? context.tr('needs_rest') : restingStatus),
           gifAssetPath: AppGifIcons.heart,
           icon: Icons.favorite_rounded,
           color: AppColors.heartTint,
           iconColor: AppColors.heartIcon,
         ),
         _StatsInsightCard(
-          title: 'Calo đốt',
+          title: context.tr('calories_burned'),
           value: '$caloriesBurned',
           delta: caloriesDelta >= 0 ? '+$caloriesDelta%' : '$caloriesDelta%',
           gifAssetPath: AppGifIcons.fire,
@@ -189,11 +190,11 @@ class StatsInsightGrid extends StatelessWidget {
           iconColor: AppColors.fireIcon,
         ),
         _StatsInsightCard(
-          title: 'Ngủ sâu',
+          title: context.tr('deep_sleep'),
           value: deepSleepLabel,
           delta: deepSleepDeltaMinutes >= 0
-              ? '+$deepSleepDeltaMinutes phút'
-              : '$deepSleepDeltaMinutes phút',
+              ? '+$deepSleepDeltaMinutes ${context.tr('minutes_unit')}'
+              : '$deepSleepDeltaMinutes ${context.tr('minutes_unit')}',
           gifAssetPath: AppGifIcons.sleep,
           icon: Icons.nightlight_round,
           color: AppColors.sleepTint,
@@ -292,19 +293,21 @@ class StatsWeeklyActivityCard extends StatelessWidget {
   final List<double> metrics;
   final double averageActivity;
 
-  static const List<String> _dayLabels = [
-    'T2',
-    'T3',
-    'T4',
-    'T5',
-    'T6',
-    'T7',
-    'CN',
-  ];
+
 
   @override
   Widget build(BuildContext context) {
-    final normalizedMetrics = List<double>.generate(_dayLabels.length, (index) {
+    final dayLabels = [
+      context.tr('weekday_short_1'),
+      context.tr('weekday_short_2'),
+      context.tr('weekday_short_3'),
+      context.tr('weekday_short_4'),
+      context.tr('weekday_short_5'),
+      context.tr('weekday_short_6'),
+      context.tr('weekday_short_7'),
+    ];
+
+    final normalizedMetrics = List<double>.generate(dayLabels.length, (index) {
       if (index < metrics.length) {
         return metrics[index].clamp(0.0, 1.0).toDouble();
       }
@@ -312,9 +315,9 @@ class StatsWeeklyActivityCard extends StatelessWidget {
     });
 
     final dayMetrics = List<_DayMetric>.generate(
-      _dayLabels.length,
+      dayLabels.length,
       (index) =>
-          _DayMetric(label: _dayLabels[index], value: normalizedMetrics[index]),
+          _DayMetric(label: dayLabels[index], value: normalizedMetrics[index]),
     );
 
     return Container(
@@ -331,9 +334,9 @@ class StatsWeeklyActivityCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Mức độ vận động',
-                style: TextStyle(
+              Text(
+                context.tr('activity_level'),
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -349,7 +352,7 @@ class StatsWeeklyActivityCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'TB ${(averageActivity * 100).round()}%',
+                  context.tr('average_activity', arguments: {'percent': (averageActivity * 100).round().toString()}),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -448,6 +451,19 @@ class StatsBodyMetricsCard extends StatelessWidget {
     required this.targetCalories,
   });
 
+  String _translateBmiCategory(BuildContext context, String category) {
+    if (category.contains('Thiếu cân') || category.toLowerCase().contains('underweight')) {
+      return context.tr('bmi_underweight');
+    } else if (category.contains('Bình thường') || category.toLowerCase().contains('normal')) {
+      return context.tr('bmi_normal');
+    } else if (category.contains('Tiền béo phì') || category.contains('Thừa cân') || category.toLowerCase().contains('overweight')) {
+      return context.tr('bmi_overweight');
+    } else if (category.contains('Béo phì') || category.toLowerCase().contains('obese')) {
+      return context.tr('bmi_obese');
+    }
+    return category;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -477,10 +493,10 @@ class StatsBodyMetricsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Thành phần cơ thể & Chuyển hóa',
-                  style: TextStyle(
+                  context.tr('body_metrics_and_metabolism'),
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -492,25 +508,25 @@ class StatsBodyMetricsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _buildMetricRow('Chiều cao', '${heightCm.toStringAsFixed(1)} cm', 'Cân nặng', '${weightKg.toStringAsFixed(1)} kg'),
+          _buildMetricRow(context.tr('height'), '${heightCm.toStringAsFixed(1)} cm', context.tr('weight'), '${weightKg.toStringAsFixed(1)} kg'),
           const Divider(height: 24, color: AppColors.cardBorder),
-          _buildBmiRow(),
+          _buildBmiRow(context),
           const Divider(height: 24, color: AppColors.cardBorder),
-          _buildMetricRow('Tỉ lệ BMR', '${bmr.round()} kcal', 'Năng lượng TDEE', '${tdee.round()} kcal'),
+          _buildMetricRow(context.tr('bmr_rate'), '${bmr.round()} kcal', context.tr('tdee_energy'), '${tdee.round()} kcal'),
           const Divider(height: 24, color: AppColors.cardBorder),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Mục tiêu Calo nạp vào:',
-                style: TextStyle(
+              Text(
+                context.tr('target_calories_intake'),
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
                 ),
               ),
               Text(
-                '$targetCalories kcal/ngày',
+                '$targetCalories ${context.tr('kcal_per_day')}',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -563,16 +579,16 @@ class StatsBodyMetricsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBmiRow() {
+  Widget _buildBmiRow(BuildContext context) {
     return Row(
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Chỉ số BMI',
-                style: TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              Text(
+                context.tr('bmi_index'),
+                style: const TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
               Text(
@@ -586,9 +602,9 @@ class StatsBodyMetricsCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Trạng thái thể trạng',
-                style: TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
+              Text(
+                context.tr('body_status'),
+                style: const TextStyle(fontSize: 11, color: AppColors.textHint, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
               Container(
@@ -599,7 +615,7 @@ class StatsBodyMetricsCard extends StatelessWidget {
                   border: Border.all(color: bmiColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  bmiCategory,
+                  _translateBmiCategory(context, bmiCategory),
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: bmiColor),
                 ),
               ),

@@ -1,27 +1,10 @@
+import 'package:flutter/material.dart';
+import '../core/config/app_localizations.dart';
+
 enum DayPart { morning, afternoon, evening, night }
 
 class DateFormatter {
   const DateFormatter._();
-
-  static const List<String> _weekdaysShortVi = <String>[
-    'Th 2',
-    'Th 3',
-    'Th 4',
-    'Th 5',
-    'Th 6',
-    'Th 7',
-    'CN',
-  ];
-
-  static const List<String> _weekdaysFullVi = <String>[
-    'Thứ Hai',
-    'Thứ Ba',
-    'Thứ Tư',
-    'Thứ Năm',
-    'Thứ Sáu',
-    'Thứ Bảy',
-    'Chủ nhật',
-  ];
 
   static DateTime nowLocal() => DateTime.now().toLocal();
 
@@ -41,28 +24,28 @@ class DateFormatter {
     return DayPart.night;
   }
 
-  static String dayPartLabelVi(DateTime dateTime) {
+  static String dayPartLabel(DateTime dateTime, BuildContext context) {
     switch (dayPartOf(dateTime)) {
       case DayPart.morning:
-        return 'Sáng';
+        return context.tr('morning');
       case DayPart.afternoon:
-        return 'Chiều';
+        return context.tr('afternoon');
       case DayPart.evening:
-        return 'Tối';
+        return context.tr('evening');
       case DayPart.night:
-        return 'Khuya';
+        return context.tr('night');
     }
   }
 
-  static String greetingVi(DateTime dateTime) {
+  static String greeting(DateTime dateTime, BuildContext context) {
     switch (dayPartOf(dateTime)) {
       case DayPart.morning:
-        return 'Chào buổi sáng';
+        return context.tr('morning_greeting');
       case DayPart.afternoon:
-        return 'Chào buổi chiều';
+        return context.tr('afternoon_greeting');
       case DayPart.evening:
       case DayPart.night:
-        return 'Chào buổi tối';
+        return context.tr('evening_greeting');
     }
   }
 
@@ -74,13 +57,15 @@ class DateFormatter {
   }
 
   static String formatDayMonthWithWeekday(
-    DateTime dateTime, {
+    DateTime dateTime,
+    BuildContext context, {
     bool shortWeekday = true,
   }) {
     final local = dateTime.toLocal();
-    final weekday = shortWeekday
-        ? _weekdaysShortVi[local.weekday - 1]
-        : _weekdaysFullVi[local.weekday - 1];
+    final String key = shortWeekday
+        ? 'weekday_short_${local.weekday}'
+        : 'weekday_full_${local.weekday}';
+    final weekday = context.tr(key);
     return '$weekday, ${formatDayMonth(local)}';
   }
 

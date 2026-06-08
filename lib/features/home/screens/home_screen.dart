@@ -6,18 +6,17 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../../../providers/auth_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../core/config/app_localizations.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
 import '../providers/health_provider.dart';
 import '../widgets/ai_pet_widget.dart';
 import '../widgets/fantasy_environment.dart';
 import '../widgets/home_sections.dart';
-import '../../../core/widgets/rpg_permission_dialog.dart';
-import '../widgets/sleep_confirmation_bottom_sheet.dart';
 import '../widgets/share_preview_dialog.dart';
 
 import '../../../models/pet_model.dart';
@@ -92,26 +91,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: const Color(0xFF111826),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFD7B56D), size: 28),
-            SizedBox(width: 10),
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFD7B56D), size: 28),
+            const SizedBox(width: 10),
             Text(
-              'Hết lượt quét hôm nay',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              context.tr('out_of_scans_title'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: const Text(
-          'Mỗi ngày bạn chỉ được quét tối đa 3 lần món ăn hoặc đồ uống để bảo toàn tài nguyên hệ thống. Hãy quay lại vào ngày mai nhé!',
-          style: TextStyle(color: Colors.white70, height: 1.4),
+        content: Text(
+          context.tr('out_of_scans_desc'),
+          style: const TextStyle(color: Colors.white70, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Đồng ý',
-              style: TextStyle(color: Color(0xFFD7B56D), fontWeight: FontWeight.bold),
+            child: Text(
+              context.tr('ok'),
+              style: const TextStyle(color: Color(0xFFD7B56D), fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -215,6 +214,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  String _getLocalizedPetTask(BuildContext context, String taskTitle) {
+    if (taskTitle.isEmpty) return '';
+    if (taskTitle.startsWith('Hoàn thành "') && taskTitle.contains('"! +')) {
+      final startIndex = taskTitle.indexOf('Hoàn thành "') + 12;
+      final endIndex = taskTitle.indexOf('"! +');
+      if (endIndex > startIndex) {
+        final innerTitle = taskTitle.substring(startIndex, endIndex);
+        final expPart = taskTitle.substring(endIndex + 4);
+        final exp = expPart.substring(0, expPart.indexOf(' '));
+        final localizedTitle = getLocalizedTaskTitle(context, innerTitle);
+        return context.tr('pet_task_completed_exp', arguments: {
+          'title': localizedTitle,
+          'exp': exp,
+        });
+      }
+    }
+    
+    if (taskTitle == 'Đã hoàn thành thiết lập mục tiêu giấc ngủ! +50 EXP') {
+      return context.tr('bedtime_goal_setup_completed_exp');
+    }
+    if (taskTitle == 'Đã hoàn thành check-in nhật ký hôm nay! +20 EXP') {
+      return context.tr('diary_checkin_completed_exp');
+    }
+
+    return getLocalizedTaskTitle(context, taskTitle);
+  }
+
   void _showRpgPermissionDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -299,10 +325,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-  
   void _startTyping(BuildContext context) {
     final healthData = context.read<HealthProvider>();
-    final task = healthData.petTask;
+    final task = _getLocalizedPetTask(context, healthData.petTask);
     if (task.isEmpty) return;
     _typingTimer?.cancel();
     _typedTask
@@ -338,6 +363,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     final healthData = context.watch<HealthProvider>();
     final auth = context.watch<AuthProvider>();
     
@@ -396,9 +422,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: HomeQuickMetricCard(
                       icon: Icons.favorite_rounded,
                       gifAssetPath: AppGifIcons.heart,
-                      title: 'Nhịp tim',
+                      title: context.tr('heart_rate'),
                       value: '${healthData.bpm} bpm',
-                      subtitle: 'Ổn định',
+                      subtitle: context.tr('stable'),
                       color: AppColors.heartTint,
                       iconColor: AppColors.heartIcon,
                     ),
@@ -408,9 +434,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: HomeQuickMetricCard(
                       icon: Icons.local_drink_rounded,
                       gifAssetPath: AppGifIcons.water,
-                      title: 'Nước',
+                      title: context.tr('water'),
                       value: '${healthData.waterLiters} L',
-                      subtitle: '${healthData.waterPercentage}% mục tiêu',
+                      subtitle: context.tr('water_goal_percent', arguments: {'percent': healthData.waterPercentage.toString()}),
                       color: AppColors.waterTint,
                       iconColor: AppColors.waterIcon,
                     ),
@@ -434,13 +460,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   if (isSaved == true && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Row(
+                        content: Row(
                           children: [
-                            Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                            SizedBox(width: 12),
+                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                            const SizedBox(width: 12),
                             Text(
-                              'Đã cập nhật giấc ngủ thành công!',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              context.tr('sleep_update_success'),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -567,10 +593,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               children: [
                                 Row(
                                   children: [
-                                    const Text("🔥", style: TextStyle(fontSize: 16)),
+                                                                    const Text("🔥", style: TextStyle(fontSize: 16)),
                                     const SizedBox(width: 4),
                                     Text(
-                                      "${pet.streakCount} ngày",
+                                      context.tr('streak_days', arguments: {'count': pet.streakCount.toString()}),
                                       style: const TextStyle(
                                         color: Color(0xFFFF8C00),
                                         fontWeight: FontWeight.w800,
@@ -581,7 +607,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     const Text("❄️", style: TextStyle(fontSize: 16)),
                                     const SizedBox(width: 4),
                                     Text(
-                                      "${pet.streakFreezeCount} bùa",
+                                      context.tr('streak_freezes', arguments: {'count': pet.streakFreezeCount.toString()}),
                                       style: const TextStyle(
                                         color: Color(0xFF00BFFF),
                                         fontWeight: FontWeight.w800,
@@ -592,7 +618,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     const Text("🪙", style: TextStyle(fontSize: 16)),
                                     const SizedBox(width: 4),
                                     Text(
-                                      "${pet.goldCoins} vàng",
+                                      context.tr('gold_coins', arguments: {'count': pet.goldCoins.toString()}),
                                       style: const TextStyle(
                                         color: Color(0xFFFFD700),
                                         fontWeight: FontWeight.w800,
@@ -647,9 +673,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                             ),
                                           )
                                         : const Icon(Icons.shopping_cart_rounded, size: 12, color: Colors.black87),
-                                    label: const Text(
-                                      "Mua bùa (50)",
-                                      style: TextStyle(
+                                    label: Text(
+                                      context.tr('buy_shield', arguments: {'cost': '50'}),
+                                      style: const TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w800,
                                         color: Colors.black87,
@@ -661,7 +687,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                        shape: RoundedRectangleBorder(
                                          borderRadius: BorderRadius.circular(20),
                                        ),
-                                    ),
+                                     ),
                                   ),
                                 ),
                               ],
@@ -671,10 +697,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             _PetDialogueCard(
                               classType: pet.classType,
                               petMessage: !healthData.hasOnboardedBedtime
-                                  ? "Chào cậu! Để mình canh giấc ngủ cho cậu tốt nhất, bình thường cậu hay lên giường lúc mấy giờ nhỉ?"
+                                  ? context.tr('pet_onboarding_welcome_message')
                                   : (pet.message.isNotEmpty ? pet.message : healthData.petMessage),
                               typedTask: !healthData.hasOnboardedBedtime
-                                  ? "Nhiệm vụ tân thủ: Thiết lập mục tiêu giấc ngủ"
+                                  ? context.tr('pet_onboarding_quest_title')
                                   : (_petTypingTriggered
                                       ? (_isTyping
                                           ? '${_typedTask.toString()}|'
@@ -965,6 +991,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     }
                                   }
                                 },
+
                               ),
                             ],
                           ],
@@ -976,16 +1003,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
 
               const SizedBox(height: 20),
-              const HomeSectionHeader(
-                title: 'Lịch trình chăm sóc',
-                actionLabel: 'Cả ngày',
+              HomeSectionHeader(
+                title: context.tr('care_schedule'),
+                actionLabel: context.tr('whole_day'),
               ),
               const SizedBox(height: 10),
               const HomePlanListCard(),
               const SizedBox(height: 20),
-              const HomeSectionHeader(
-                title: 'Hoạt động gần đây',
-                actionLabel: 'Xem hết',
+              HomeSectionHeader(
+                title: context.tr('recent_activities'),
+                actionLabel: context.tr('show_all'),
               ),
               const SizedBox(height: 10),
               const HomeRecentActivityCard(),
@@ -1067,9 +1094,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Quét dinh dưỡng AI',
-                      style: TextStyle(
+                    Text(
+                      context.tr('ai_nutrition_scan'),
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -1077,7 +1104,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Đã nạp: ${healthData.caloriesConsumed} kcal · Còn $_remainingScans lượt quét',
+                      context.tr('scans_remaining_desc', arguments: {
+                        'calories': healthData.caloriesConsumed.toString(),
+                        'scans': _remainingScans.toString(),
+                      }),
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
@@ -1145,15 +1175,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
+                    color: Color(AppColors.primarySurfaceHex),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+                    border: Border.all(color: Color(AppColors.primaryHex).withValues(alpha: 0.15)),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 24,
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: Color(AppColors.primaryHex),
                         child: Text(
                           auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : 'K',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
@@ -1166,10 +1196,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           children: [
                             Text(
                               auth.userName.isNotEmpty ? auth.userName : 'Huỳnh Vĩnh Khang',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.primaryDark,
+                                color: Color(AppColors.primaryDarkHex),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1186,7 +1216,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: Color(AppColors.primaryHex),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -1216,18 +1246,64 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: Color(AppColors.primaryHex).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.person_outline_rounded,
-                            color: AppColors.primary,
+                            color: Color(AppColors.primaryHex),
                             size: 20,
                           ),
                         ),
                         const SizedBox(width: 16),
                         const Text(
                           'Xem thông tin cá nhân',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: AppColors.textHint,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/settings');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Color(AppColors.primaryHex).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.settings_outlined,
+                            color: Color(AppColors.primaryHex),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Cấu hình & Cài đặt',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -1425,11 +1501,39 @@ class _PetDialogueCard extends StatelessWidget {
     8: 'Tĩnh tâm, vạn vật tự sáng tỏ.',
   };
 
+  String _getLocalizedClassLabel(BuildContext context, int type) {
+    switch (type) {
+      case 1: return context.tr('class_warrior');
+      case 2: return context.tr('class_archer');
+      case 3: return context.tr('class_assassin');
+      case 4: return context.tr('class_mage');
+      case 5: return context.tr('class_knight');
+      case 6: return context.tr('class_necromancer');
+      case 7: return context.tr('class_berserker');
+      case 8: return context.tr('class_monk');
+      default: return context.tr('class_mage');
+    }
+  }
+
+  String _getLocalizedClassThought(BuildContext context, int type) {
+    switch (type) {
+      case 1: return context.tr('thought_warrior');
+      case 2: return context.tr('thought_archer');
+      case 3: return context.tr('thought_assassin');
+      case 4: return context.tr('thought_mage');
+      case 5: return context.tr('thought_knight');
+      case 6: return context.tr('thought_necromancer');
+      case 7: return context.tr('thought_berserker');
+      case 8: return context.tr('thought_monk');
+      default: return context.tr('thought_mage');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final label = _classLabels[classType] ?? 'Pháp sư';
+    final label = _getLocalizedClassLabel(context, classType);
     final sprite = _classSprites[classType] ?? _classSprites[4]!;
-    final thought = _classThoughts[classType] ?? _classThoughts[4]!;
+    final thought = _getLocalizedClassThought(context, classType);
     const borderColor = Color(0xFFD7B56D);
     const panelColor = Color(0xFF0C121E);
     const panelAccent = Color(0xFF152236);
@@ -1540,7 +1644,7 @@ class _PetDialogueCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Tộc: $label',
+                      context.tr('class_prefix', arguments: {'class': label}),
                       style: const TextStyle(
                         color: Color(0xFFF4E2B6),
                         fontSize: 12,
@@ -1760,10 +1864,11 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'CẢNH BÁO SỨC KHỎE SỐ',
+          // Tiêu đề cảnh báo
+          Text(
+            context.tr('digital_wellbeing_warning'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
               color: Color(0xFFF4E2B6),
@@ -1771,10 +1876,11 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Bạn đã dành quá nhiều thời gian cho Game hoặc Mạng xã hội hôm nay!',
+          // Nội dung cảnh báo
+          Text(
+            context.tr('screentime_warning_desc'),
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.white,
               height: 1.4,
@@ -1801,7 +1907,7 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Chi tiết hôm nay:',
+                      context.tr('screentime_details'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -1814,7 +1920,7 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
                 Text(
                   widget.healthData.screenTimeDetails.isNotEmpty
                       ? widget.healthData.screenTimeDetails
-                      : 'Đang tổng hợp dữ liệu ứng dụng...',
+                      : context.tr('screentime_aggregating'),
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFFB6A27A),
@@ -1838,9 +1944,9 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFD7B56D).withOpacity(0.3)),
                   ),
-                  child: const Text(
-                    'Bạn nên rời màn hình điện thoại ngay. Đi dạo 15 phút hoặc nhắm mắt thư giãn 5 phút nhé!',
-                    style: TextStyle(
+                  child: Text(
+                    context.tr('screentime_pet_advice'),
+                    style: const TextStyle(
                       fontSize: 12,
                       color: Colors.white70,
                       height: 1.4,
@@ -1867,9 +1973,9 @@ class _ScreenTimeWarningDialogState extends State<_ScreenTimeWarningDialog> with
                 ),
                 elevation: 4,
               ),
-              child: const Text(
-                'Đã hiểu & Sẽ chú ý',
-                style: TextStyle(
+              child: Text(
+                context.tr('screentime_ack'),
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1941,9 +2047,9 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
               children: [
                 const Icon(Icons.auto_awesome, color: Color(0xFFD7B56D), size: 24),
                 const SizedBox(width: 10),
-                const Text(
-                  'Nhật ký Dinh dưỡng AI',
-                  style: TextStyle(
+                Text(
+                  context.tr('ai_nutrition_journal'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1958,7 +2064,7 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
                     border: Border.all(color: const Color(0xFFD7B56D).withOpacity(0.2)),
                   ),
                   child: Text(
-                    'Còn ${widget.remainingScans} lượt',
+                    context.tr('scans_remaining_count', arguments: {'count': widget.remainingScans.toString()}),
                     style: const TextStyle(
                       color: Color(0xFFD7B56D),
                       fontSize: 11,
@@ -1969,9 +2075,9 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Gõ bữa ăn của bạn hoặc chụp ảnh để Gemini phân tích dinh dưỡng và so sánh với mục tiêu calo của bạn.',
-              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            Text(
+              context.tr('nutrition_diary_hint'),
+              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 20),
             if (_successMessage != null) ...[
@@ -2002,7 +2108,7 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
               maxLines: 3,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Sáng nay mình ăn 1 bánh mì ốp la và uống 1 ly đen đá...',
+                hintText: context.tr('food_desc_placeholder'),
                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
                 fillColor: const Color(0xFF162033),
                 filled: true,
@@ -2022,7 +2128,7 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
                     child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : widget.onScanPhoto,
                       icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                      label: const Text('Chụp ảnh quét', style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(context.tr('scan_photo'), style: const TextStyle(fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFD7B56D),
                         side: const BorderSide(color: Color(0xFFD7B56D), width: 1.5),
@@ -2060,7 +2166,7 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
                                     ? widget.healthData.todayFoods.last
                                     : 'món ăn';
                                 setState(() {
-                                  _successMessage = 'Đã phân tích thành công và cộng dồn dinh dưỡng của "$lastMeal"!';
+                                  _successMessage = context.tr('food_analysis_success', arguments: {'meal': lastMeal});
                                   _textController.clear();
                                 });
                                 Future.delayed(const Duration(milliseconds: 1500), () {
@@ -2071,8 +2177,8 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
                               } else {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Vui lòng nhập đúng mô tả món ăn thực tế!'),
+                                    SnackBar(
+                                      content: Text(context.tr('food_analysis_failed')),
                                       backgroundColor: Colors.red,
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -2088,7 +2194,7 @@ class _AiNutritionDiaryBottomSheetState extends State<_AiNutritionDiaryBottomShe
                             )
                           : const Icon(Icons.auto_awesome, size: 18, color: Colors.black),
                       label: Text(
-                        _isLoading ? 'Đang phân tích...' : 'Phân tích chữ',
+                        _isLoading ? context.tr('analyzing') : context.tr('analyze_text'),
                         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                       ),
                       style: FilledButton.styleFrom(
@@ -2145,14 +2251,14 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
   String _formatDuration(Duration d) {
     final hours = d.inHours;
     final minutes = d.inMinutes % 60;
-    return '${hours} tiếng ${minutes} phút';
+    return '${hours} ${context.tr('sleep_hours_unit')} ${minutes} ${context.tr('sleep_minutes_unit')}';
   }
 
   Future<void> _selectStartTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_start),
-      helpText: 'Chọn giờ bắt đầu ngủ',
+      helpText: context.tr('select_sleep_start'),
     );
     if (picked != null) {
       setState(() {
@@ -2166,7 +2272,7 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_wake),
-      helpText: 'Chọn giờ thức dậy',
+      helpText: context.tr('select_wake_time'),
     );
     if (picked != null) {
       setState(() {
@@ -2209,13 +2315,13 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
             ),
           ),
           const SizedBox(height: 24),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.nights_stay_rounded, color: Color(0xFFD7B56D), size: 24),
-              SizedBox(width: 8),
+              const Icon(Icons.nights_stay_rounded, color: Color(0xFFD7B56D), size: 24),
+              const SizedBox(width: 8),
               Text(
-                'Chào buổi sáng! 🌅',
-                style: TextStyle(
+                '${context.tr('morning_greeting')}! 🌅',
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFFD7B56D),
@@ -2226,7 +2332,10 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
           const SizedBox(height: 16),
           if (!_isEditing) ...[
             Text(
-              'Đêm qua có vẻ bạn đã đặt điện thoại xuống lúc ${_formatTime(_start)} và thức dậy lúc ${_formatTime(_wake)}.',
+              context.tr('sleep_detect_desc', arguments: {
+                'start': _formatTime(_start),
+                'wake': _formatTime(_wake),
+              }),
               style: const TextStyle(
                 fontSize: 14,
                 color: Colors.white,
@@ -2235,7 +2344,7 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
             ),
             const SizedBox(height: 8),
             Text(
-              'Bạn đã ngủ $durationLabel đúng không?',
+              context.tr('sleep_confirm_question', arguments: {'duration': durationLabel}),
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -2243,9 +2352,9 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
               ),
             ),
           ] else ...[
-            const Text(
-              'Chỉnh sửa thời gian giấc ngủ của bạn:',
-              style: TextStyle(
+            Text(
+              context.tr('edit_sleep_time'),
+              style: const TextStyle(
                 fontSize: 14,
                 color: Colors.white70,
               ),
@@ -2266,9 +2375,9 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
                       ),
                       child: Column(
                         children: [
-                          const Text(
-                            'Bắt đầu ngủ',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          Text(
+                            context.tr('sleep_start'),
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -2298,9 +2407,9 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
                       ),
                       child: Column(
                         children: [
-                          const Text(
-                            'Thức dậy',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          Text(
+                            context.tr('wake_up'),
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -2321,7 +2430,7 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
             const SizedBox(height: 16),
             Center(
               child: Text(
-                'Tổng thời gian ngủ: $durationLabel',
+                context.tr('total_sleep_time', arguments: {'duration': durationLabel}),
                 style: const TextStyle(
                   color: Color(0xFFD7B56D),
                   fontWeight: FontWeight.bold,
@@ -2356,7 +2465,7 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(_isEditing ? 'Hủy' : 'Chỉnh sửa giờ'),
+                  child: Text(_isEditing ? context.tr('cancel') : context.tr('edit_time')),
                 ),
               ),
               const SizedBox(width: 16),
@@ -2376,9 +2485,9 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Chính xác, lưu lại',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Text(
+                    context.tr('confirm_and_save'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -2391,9 +2500,9 @@ class _SleepConfirmationBottomSheetState extends State<_SleepConfirmationBottomS
                 widget.healthData.dismissSleepConfirmation();
                 Navigator.pop(context);
               },
-              child: const Text(
-                'Bỏ qua lần này',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
+              child: Text(
+                context.tr('skip_this_time'),
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             ),
           ),
@@ -2448,9 +2557,9 @@ class _PetOnboardingBedtimePanelState extends State<_PetOnboardingBedtimePanel> 
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'QUEST TÂN THỦ • CHỌN GIỜ ĐI NGỦ',
-                style: TextStyle(
+              Text(
+                context.tr('quest_onboarding_title'),
+                style: const TextStyle(
                   color: Color(0xFFD7B56D),
                   fontWeight: FontWeight.bold,
                   fontSize: 11,
@@ -2532,9 +2641,9 @@ class _PetOnboardingBedtimePanelState extends State<_PetOnboardingBedtimePanel> 
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text(
-                      'Xác nhận giờ đi ngủ 🎯',
-                      style: TextStyle(
+                  : Text(
+                      context.tr('confirm_bedtime'),
+                      style: const TextStyle(
                         color: Colors.black87,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,

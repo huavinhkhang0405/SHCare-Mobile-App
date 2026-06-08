@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/config/app_localizations.dart';
 
 import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../core/widgets/gif_icon.dart';
 import '../../home/screens/home_screen.dart';
 import '../../home/widgets/music_play_button.dart';
@@ -171,13 +173,25 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     // Lắng nghe tín hiệu chọc ghẹo từ bạn bè realtime
     final healthProvider = context.watch<HealthProvider>();
-    final pokeMessage = healthProvider.latestPokeMessage;
-    if (pokeMessage != null) {
+    final pokeSender = healthProvider.latestPokeSender;
+    final pokeType = healthProvider.latestPokeType;
+    if (pokeSender != null && pokeType != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (healthProvider.latestPokeMessage != null) {
-          _showPokeAlert(context, healthProvider.latestPokeMessage!);
+        if (healthProvider.latestPokeSender != null) {
+          String message = '';
+          if (pokeType == 'lazy') {
+            message = context.tr('poke_alert_lazy', arguments: {'sender': pokeSender});
+          } else if (pokeType == 'water') {
+            message = context.tr('poke_alert_water', arguments: {'sender': pokeSender});
+          } else if (pokeType == 'sleep') {
+            message = context.tr('poke_alert_sleep', arguments: {'sender': pokeSender});
+          } else {
+            message = context.tr('poke_alert_default', arguments: {'sender': pokeSender});
+          }
+          _showPokeAlert(context, message);
           healthProvider.clearLatestPokeMessage();
         }
       });
@@ -265,61 +279,61 @@ class _MainScreenState extends State<MainScreen> {
             backgroundColor: Theme.of(
               context,
             ).navigationBarTheme.backgroundColor,
-            destinations: const [
+            destinations: [
               NavigationDestination(
-                icon: GifIcon(
+                icon: const GifIcon(
                   assetPath: AppGifIcons.home,
                   fallbackIcon: Icons.grid_view_outlined,
                 ),
-                selectedIcon: GifIcon(
+                selectedIcon: const GifIcon(
                   assetPath: AppGifIcons.home,
                   fallbackIcon: Icons.grid_view,
                 ),
-                label: 'Trang chủ',
+                label: context.tr('home_title'),
               ),
               NavigationDestination(
-                icon: GifIcon(
+                icon: const GifIcon(
                   assetPath: AppGifIcons.stats,
                   fallbackIcon: Icons.bar_chart_outlined,
                 ),
-                selectedIcon: GifIcon(
+                selectedIcon: const GifIcon(
                   assetPath: AppGifIcons.stats,
                   fallbackIcon: Icons.bar_chart,
                 ),
-                label: 'Thống kê',
+                label: context.tr('stats_title'),
               ),
               NavigationDestination(
-                icon: GifIcon(
+                icon: const GifIcon(
                   assetPath: AppGifIcons.tips,
                   fallbackIcon: Icons.auto_awesome_outlined,
                 ),
-                selectedIcon: GifIcon(
+                selectedIcon: const GifIcon(
                   assetPath: AppGifIcons.tips,
                   fallbackIcon: Icons.auto_awesome,
                 ),
-                label: 'Gợi ý',
+                label: context.tr('tips_title'),
               ),
               NavigationDestination(
-                icon: GifIcon(
+                icon: const GifIcon(
                   assetPath: AppGifIcons.journal,
                   fallbackIcon: Icons.description_outlined,
                 ),
-                selectedIcon: GifIcon(
+                selectedIcon: const GifIcon(
                   assetPath: AppGifIcons.journal,
                   fallbackIcon: Icons.description,
                 ),
-                label: 'Nhật ký',
+                label: context.tr('journal_title'),
               ),
               NavigationDestination(
-                icon: GifIcon(
+                icon: const GifIcon(
                   assetPath: AppGifIcons.profile,
                   fallbackIcon: Icons.group_outlined,
                 ),
-                selectedIcon: GifIcon(
+                selectedIcon: const GifIcon(
                   assetPath: AppGifIcons.profile,
                   fallbackIcon: Icons.group,
                 ),
-                label: 'Cộng đồng',
+                label: context.tr('social_title'),
               ),
             ],
           ),
@@ -371,9 +385,9 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Bị chọc ghẹo! 😂',
-                  style: TextStyle(
+                Text(
+                  context.tr('get_poked_title'),
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
@@ -401,9 +415,9 @@ class _MainScreenState extends State<MainScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Tập luyện thôi! 🔥',
-                      style: TextStyle(
+                    child: Text(
+                      context.tr('get_poked_button'),
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),

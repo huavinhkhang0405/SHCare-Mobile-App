@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
+import '../../../core/config/app_localizations.dart';
 
 class HealthScoreCard extends StatelessWidget {
   const HealthScoreCard({
@@ -12,6 +13,22 @@ class HealthScoreCard extends StatelessWidget {
 
   final int score;
   final String message;
+
+  String _getLocalizedScoreMessage(BuildContext context, String msg) {
+    if (msg == 'Thể trạng hôm nay rất ấn tượng. Hãy giữ nhịp này!') {
+      return context.tr('score_message_very_good');
+    }
+    if (msg == 'Sự hồi phục của bạn hôm nay đang đi đúng hướng.') {
+      return context.tr('score_message_good');
+    }
+    if (msg == 'Cơ thể đang cần thêm nghỉ ngơi và bù nước.') {
+      return context.tr('score_message_needs_rest');
+    }
+    if (msg == 'Hãy chú ý điều chỉnh nhịp sinh hoạt hôm nay nhé.') {
+      return context.tr('score_message_poor');
+    }
+    return msg;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +52,9 @@ class HealthScoreCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Chỉ số Sống khỏe',
-                  style: TextStyle(
+                Text(
+                  context.tr('health_index'),
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontWeight: FontWeight.w500,
                   ),
@@ -62,7 +79,7 @@ class HealthScoreCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  message,
+                  _getLocalizedScoreMessage(context, message),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../providers/settings_provider.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../../core/providers/audio_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gif_icon.dart';
@@ -68,11 +70,12 @@ class _JournalScreenState extends State<JournalScreen>
 
   @override
   Widget build(BuildContext context) {
+    context.select<SettingsProvider, (int, String)>((p) => (p.themeColorHex, p.languageCode));
     final healthData = context.watch<HealthProvider>();
     final selectedSymptoms = healthData.selectedSymptoms;
-    final dateLabel = DateFormatter.formatDayMonthWithWeekday(_now);
+    final dateLabel = DateFormatter.formatDayMonthWithWeekday(_now, context);
     final timeLabel = DateFormatter.formatHourMinute(_now);
-    final dayPartLabel = DateFormatter.dayPartLabelVi(_now);
+    final dayPartLabel = DateFormatter.dayPartLabel(_now, context);
 
     // Populate note text if not initialized yet
     if (!_isNoteInitialized && healthData.todayNote.isNotEmpty) {
@@ -95,8 +98,8 @@ class _JournalScreenState extends State<JournalScreen>
                   const SizedBox(height: 12),
                   TabBar(
                     controller: _tabController,
-                    indicatorColor: AppColors.primary,
-                    labelColor: AppColors.primary,
+                    indicatorColor: Color(AppColors.primaryHex),
+                    labelColor: Color(AppColors.primaryHex),
                     unselectedLabelColor: AppColors.textSecondary,
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.w800,
@@ -107,9 +110,9 @@ class _JournalScreenState extends State<JournalScreen>
                       fontSize: 14,
                     ),
                     indicatorSize: TabBarIndicatorSize.tab,
-                    tabs: const [
-                      Tab(text: 'Check-in hôm nay'),
-                      Tab(text: 'Lịch sử sức khỏe'),
+                    tabs: [
+                      Tab(text: context.tr('today_checkin')),
+                      Tab(text: context.tr('health_history')),
                     ],
                   ),
                 ],
@@ -126,7 +129,7 @@ class _JournalScreenState extends State<JournalScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         JournalSectionHeader(
-                          title: 'Cảm xúc hôm nay',
+                          title: context.tr('mood_today'),
                           actionLabel: '$dateLabel · $timeLabel · $dayPartLabel',
                         ),
                         const SizedBox(height: 10),
@@ -161,8 +164,8 @@ class _JournalScreenState extends State<JournalScreen>
                                     SnackBar(
                                       content: Text(
                                         isStress
-                                            ? 'Đã kích hoạt playlist giảm căng thẳng: mưa rơi + piano chậm.'
-                                            : 'Đã chuyển về playlist thường ngày theo tâm trạng hiện tại.',
+                                            ? context.tr('activated_stress_playlist')
+                                            : context.tr('restored_regular_playlist'),
                                       ),
                                       behavior: SnackBarBehavior.floating,
                                       duration: const Duration(seconds: 2),
@@ -184,14 +187,14 @@ class _JournalScreenState extends State<JournalScreen>
                                     ),
                                     border: Border.all(
                                       color: isSelected
-                                          ? AppColors.primary
+                                          ? Color(AppColors.primaryHex)
                                           : AppColors.cardBorder,
                                       width: isSelected ? 2.0 : 1.0,
                                     ),
                                     boxShadow: isSelected
                                         ? [
                                             BoxShadow(
-                                              color: AppColors.primary
+                                              color: Color(AppColors.primaryHex)
                                                   .withValues(alpha: 0.15),
                                               blurRadius: 10,
                                               offset: const Offset(0, 4),
@@ -213,7 +216,7 @@ class _JournalScreenState extends State<JournalScreen>
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                           color: isSelected
-                                              ? AppColors.primary
+                                              ? Color(AppColors.primaryHex)
                                               : AppColors.textSecondary,
                                         ),
                                       ),
@@ -246,9 +249,9 @@ class _JournalScreenState extends State<JournalScreen>
                           },
                         ),
                         const SizedBox(height: 20),
-                        const JournalSectionHeader(
-                          title: 'Triệu chứng nhẹ',
-                          actionLabel: 'Có thể bỏ qua',
+                        JournalSectionHeader(
+                          title: context.tr('minor_symptoms'),
+                          actionLabel: context.tr('can_be_skipped'),
                         ),
                         const SizedBox(height: 10),
                         Container(
@@ -268,12 +271,12 @@ class _JournalScreenState extends State<JournalScreen>
                                   (symptom) => FilterChip(
                                     selected: selectedSymptoms.contains(symptom),
                                     label: Text(symptom),
-                                    selectedColor: AppColors.primarySurface,
+                                    selectedColor: Color(AppColors.primarySurfaceHex),
                                     labelStyle: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: selectedSymptoms.contains(symptom)
-                                          ? AppColors.primaryDark
+                                          ? Color(AppColors.primaryDarkHex)
                                           : AppColors.textSecondary,
                                     ),
                                     shape: RoundedRectangleBorder(
@@ -281,7 +284,7 @@ class _JournalScreenState extends State<JournalScreen>
                                     ),
                                     side: BorderSide(
                                       color: selectedSymptoms.contains(symptom)
-                                          ? AppColors.primary
+                                          ? Color(AppColors.primaryHex)
                                           : AppColors.cardBorder,
                                     ),
                                     onSelected: (selected) => context
@@ -293,16 +296,16 @@ class _JournalScreenState extends State<JournalScreen>
                           ),
                         ),
                         const SizedBox(height: 20),
-                        const JournalSectionHeader(
-                          title: 'Nhật ký Dinh dưỡng AI',
-                          actionLabel: 'Ước lượng bởi Gemini',
+                        JournalSectionHeader(
+                          title: context.tr('ai_nutrition_journal'),
+                          actionLabel: context.tr('estimated_by_gemini'),
                         ),
                         const SizedBox(height: 10),
                         const _JournalNutritionCard(),
                         const SizedBox(height: 20),
-                        const JournalSectionHeader(
-                          title: 'Ghi chú nhanh',
-                          actionLabel: 'Tự do',
+                        JournalSectionHeader(
+                          title: context.tr('quick_note'),
+                          actionLabel: context.tr('free_text'),
                         ),
                         const SizedBox(height: 10),
                         Container(
@@ -324,7 +327,7 @@ class _JournalScreenState extends State<JournalScreen>
                                 },
                                 decoration: InputDecoration(
                                   hintText:
-                                      'Ghi lại cảm nhận, mục tiêu hoặc điều cần cải thiện trong ngày...',
+                                      context.tr('note_placeholder'),
                                   hintStyle: const TextStyle(
                                     fontSize: 13,
                                     color: AppColors.textHint,
@@ -363,9 +366,9 @@ class _JournalScreenState extends State<JournalScreen>
 
                                           if (success) {
                                             messenger.showSnackBar(
-                                              const SnackBar(
+                                              SnackBar(
                                                 content: Text(
-                                                  'Đã lưu nhật ký sức khỏe hôm nay thành công! 🎉',
+                                                  context.tr('save_diary_success'),
                                                 ),
                                                 backgroundColor: Colors.green,
                                                 behavior:
@@ -379,9 +382,9 @@ class _JournalScreenState extends State<JournalScreen>
                                             }
                                           } else {
                                             messenger.showSnackBar(
-                                              const SnackBar(
+                                              SnackBar(
                                                 content: Text(
-                                                  'Lưu nhật ký thất bại. Vui lòng thử lại!',
+                                                  context.tr('save_diary_failed'),
                                                 ),
                                                 backgroundColor: Colors.red,
                                                 behavior:
@@ -407,13 +410,13 @@ class _JournalScreenState extends State<JournalScreen>
                                         ),
                                   label: Text(
                                     _isSaving
-                                        ? 'Đang lưu...'
-                                        : 'Lưu check-in hôm nay',
+                                        ? context.tr('generating')
+                                        : context.tr('journal_save_checkin'),
                                   ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Color(AppColors.primaryHex),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
                                       vertical: 14,
                                     ),
                                     shape: RoundedRectangleBorder(
@@ -444,8 +447,8 @@ class _JournalScreenState extends State<JournalScreen>
 
   Widget _buildHistoryTab(HealthProvider healthData) {
     if (healthData.isLoadingHistory) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
+      return Center(
+        child: CircularProgressIndicator(color: Color(AppColors.primaryHex)),
       );
     }
 
@@ -454,7 +457,7 @@ class _JournalScreenState extends State<JournalScreen>
     if (history.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => healthData.fetchDiaryHistory(),
-        color: AppColors.primary,
+        color: Color(AppColors.primaryHex),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
@@ -478,8 +481,8 @@ class _JournalScreenState extends State<JournalScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Hãy hoàn thành check-in hôm nay để bắt đầu theo dõi hành trình sức khỏe của bạn.',
+                Text(
+                  context.tr('journal_empty_desc'),
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
@@ -492,9 +495,9 @@ class _JournalScreenState extends State<JournalScreen>
                     _tabController.animateTo(0);
                   },
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Tạo check-in ngay'),
+                  label: Text(context.tr('journal_create_checkin')),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: Color(AppColors.primaryHex),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -535,7 +538,7 @@ class _JournalScreenState extends State<JournalScreen>
 
     return RefreshIndicator(
       onRefresh: () => healthData.fetchDiaryHistory(),
-      color: AppColors.primary,
+      color: Color(AppColors.primaryHex),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
@@ -552,7 +555,7 @@ class _JournalScreenState extends State<JournalScreen>
               });
             },
             decoration: InputDecoration(
-              hintText: 'Tìm ghi chú, món ăn...',
+              hintText: context.tr('journal_search_placeholder'),
               hintStyle: const TextStyle(fontSize: 13, color: AppColors.textHint),
               prefixIcon: const Icon(
                 Icons.search_rounded,
@@ -583,16 +586,16 @@ class _JournalScreenState extends State<JournalScreen>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                borderSide: BorderSide(color: Color(AppColors.primaryHex), width: 1.5),
               ),
             ),
           ),
           const SizedBox(height: 16),
 
           // Lọc nhanh Tâm trạng
-          const Text(
-            'Lọc theo tâm trạng:',
-            style: TextStyle(
+          Text(
+            context.tr('journal_filter_mood'),
+            style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppColors.textHint,
@@ -605,7 +608,7 @@ class _JournalScreenState extends State<JournalScreen>
               scrollDirection: Axis.horizontal,
               children: [
                 _buildFilterChip(
-                  label: 'Tất cả',
+                  label: context.tr('category_all'),
                   isSelected: _selectedMoodFilter == null,
                   onSelected: (_) {
                     setState(() {
@@ -614,7 +617,8 @@ class _JournalScreenState extends State<JournalScreen>
                   },
                 ),
                 ...List.generate(kMoodOptions.length, (index) {
-                  final mood = kMoodOptions[index];
+                  final moodOptions = getMoodOptions(context);
+                  final mood = moodOptions[index];
                   return _buildFilterChip(
                     label: '${mood.emoji} ${mood.label}',
                     isSelected: _selectedMoodFilter == index,
@@ -631,9 +635,9 @@ class _JournalScreenState extends State<JournalScreen>
           const SizedBox(height: 12),
 
           // Lọc nhanh Triệu chứng
-          const Text(
-            'Lọc theo triệu chứng:',
-            style: TextStyle(
+          Text(
+            context.tr('journal_filter_symptom'),
+            style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppColors.textHint,
@@ -646,7 +650,7 @@ class _JournalScreenState extends State<JournalScreen>
               scrollDirection: Axis.horizontal,
               children: [
                 _buildFilterChip(
-                  label: 'Tất cả',
+                  label: context.tr('category_all'),
                   isSelected: _selectedSymptomFilter == null,
                   onSelected: (_) {
                     setState(() {
@@ -654,7 +658,7 @@ class _JournalScreenState extends State<JournalScreen>
                     });
                   },
                 ),
-                ...kSymptomOptions.where((s) => s != 'Không có').map((symptom) {
+                ...getSymptomOptions(context).where((s) => s != context.tr('symptom_none')).map((symptom) {
                   return _buildFilterChip(
                     label: symptom,
                     isSelected: _selectedSymptomFilter == symptom,
@@ -675,7 +679,7 @@ class _JournalScreenState extends State<JournalScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Lịch sử đã lưu (${filteredHistory.length})',
+                context.tr('journal_saved_count').replaceAll('{count}', '${filteredHistory.length}'),
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -699,9 +703,9 @@ class _JournalScreenState extends State<JournalScreen>
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
-                    'Xóa lọc',
-                    style: TextStyle(
+                  child: Text(
+                    context.tr('journal_clear_filter'),
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: Colors.redAccent,
@@ -716,13 +720,13 @@ class _JournalScreenState extends State<JournalScreen>
           if (filteredHistory.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 40),
-              child: const Column(
+              child: Column(
                 children: [
-                  Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
-                  SizedBox(height: 12),
+                  const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
+                  const SizedBox(height: 12),
                   Text(
-                    'Không tìm thấy nhật ký phù hợp',
-                    style: TextStyle(
+                    context.tr('journal_no_results'),
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
@@ -746,16 +750,16 @@ class _JournalScreenState extends State<JournalScreen>
                         await healthData.deleteDiaryEntry(entry.id);
                     if (success) {
                       messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã xóa nhật ký thành công!'),
+                        SnackBar(
+                          content: Text(context.tr('diary_deleted_success')),
                           backgroundColor: Colors.green,
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
                     } else {
                       messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Xóa nhật ký thất bại. Vui lòng thử lại!'),
+                        SnackBar(
+                          content: Text(context.tr('diary_deleted_failed')),
                           backgroundColor: Colors.red,
                           behavior: SnackBarBehavior.floating,
                         ),
@@ -780,15 +784,15 @@ class _JournalScreenState extends State<JournalScreen>
       child: FilterChip(
         selected: isSelected,
         label: Text(label),
-        selectedColor: AppColors.primarySurface,
+        selectedColor: Color(AppColors.primarySurfaceHex),
         labelStyle: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: isSelected ? AppColors.primaryDark : AppColors.textSecondary,
+          color: isSelected ? Color(AppColors.primaryDarkHex) : AppColors.textSecondary,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         side: BorderSide(
-          color: isSelected ? AppColors.primary : AppColors.cardBorder,
+          color: isSelected ? Color(AppColors.primaryHex) : AppColors.cardBorder,
         ),
         onSelected: onSelected,
       ),
@@ -873,9 +877,9 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Calories đã nạp',
-                style: TextStyle(
+              Text(
+                context.tr('calories_intake'),
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -883,10 +887,10 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
               ),
               Text(
                 '${healthData.consumedCalories} / ${healthData.targetCalories} kcal',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
+                  color: Color(AppColors.primaryHex),
                 ),
               ),
             ],
@@ -899,7 +903,7 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
               minHeight: 10,
               backgroundColor: AppColors.scaffoldBg,
               valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  AlwaysStoppedAnimation<Color>(Color(AppColors.primaryHex)),
             ),
           ),
           const SizedBox(height: 16),
@@ -935,9 +939,9 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
           // Lịch sử các món ăn đã nhập
           if (healthData.todayFoods.isNotEmpty) ...[
             const SizedBox(height: 20),
-            const Text(
-              'Các món ăn đã nạp hôm nay:',
-              style: TextStyle(
+            Text(
+              context.tr('consumed_foods'),
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textSecondary,
@@ -953,24 +957,24 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
                             horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color:
-                              AppColors.primarySurface.withValues(alpha: 0.08),
+                              Color(AppColors.primarySurfaceHex).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.2),
+                              color: Color(AppColors.primaryHex).withValues(alpha: 0.2),
                               width: 1.0),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.restaurant_menu_rounded,
-                                size: 11, color: AppColors.primary),
+                            Icon(Icons.restaurant_menu_rounded,
+                                size: 11, color: Color(AppColors.primaryHex)),
                             const SizedBox(width: 4),
                             Text(
                               food,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.primaryDark,
+                                color: Color(AppColors.primaryDarkHex),
                               ),
                             ),
                           ],
@@ -990,8 +994,7 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
             maxLines: 2,
             enabled: !healthData.isLoadingAI,
             decoration: InputDecoration(
-              hintText:
-                  'Nhập món ăn (ví dụ: Trưa nay mình ăn 1 dĩa cơm sườn bì chả và 1 ly trà đá)...',
+              hintText: context.tr('food_desc_placeholder'),
               hintStyle: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textHint,
@@ -1023,18 +1026,18 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
                           if (success) {
                             _mealController.clear();
                             messenger.showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                    'Đã phân tích thành công và cộng dồn dinh dưỡng!'),
+                                  context.tr('food_analysis_success').replaceAll('{meal}', text)),
                                 backgroundColor: Colors.green,
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
                           } else {
                             messenger.showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                    'Vui lòng nhập đúng tên món ăn / thức uống thực tế!'),
+                                  context.tr('food_analysis_failed')),
                                 backgroundColor: Colors.red,
                                 behavior: SnackBarBehavior.floating,
                               ),
@@ -1053,12 +1056,12 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
                       : const Icon(Icons.auto_awesome, size: 14),
                   label: Text(
                     healthData.isLoadingAI
-                        ? 'Đang phân tích...'
-                        : 'Phân tích chữ',
+                        ? context.tr('analyzing')
+                        : context.tr('analyze_text'),
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: Color(AppColors.primaryHex),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -1096,9 +1099,9 @@ class _JournalNutritionCardState extends State<_JournalNutritionCard> {
                     }
                   },
                   icon: const Icon(Icons.camera_alt_rounded, size: 14),
-                  label: const Text(
-                    'Chụp ảnh quét',
-                    style: TextStyle(fontSize: 12),
+                  label: Text(
+                    context.tr('scan_photo'),
+                    style: const TextStyle(fontSize: 12),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.accent,

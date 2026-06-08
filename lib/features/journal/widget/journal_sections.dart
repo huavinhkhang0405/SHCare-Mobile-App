@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../../core/widgets/gif_icon.dart';
 
 class MoodOption {
@@ -15,6 +16,14 @@ class MoodOption {
   final Color color;
 }
 
+List<MoodOption> getMoodOptions(BuildContext context) => [
+  MoodOption(emoji: '😄', label: context.tr('mood_very_good'), color: const Color(0xFFE7F7EE)),
+  MoodOption(emoji: '🙂', label: context.tr('mood_stable'), color: const Color(0xFFEAF5FF)),
+  MoodOption(emoji: '😐', label: context.tr('mood_normal'), color: const Color(0xFFFFF4E4)),
+  MoodOption(emoji: '😣', label: context.tr('mood_stressed'), color: const Color(0xFFFFEBEC)),
+];
+
+// Keep const version for backwards compat with history card (uses index only)
 const List<MoodOption> kMoodOptions = [
   MoodOption(emoji: '😄', label: 'Rất tốt', color: Color(0xFFE7F7EE)),
   MoodOption(emoji: '🙂', label: 'Ổn định', color: Color(0xFFEAF5FF)),
@@ -22,6 +31,15 @@ const List<MoodOption> kMoodOptions = [
   MoodOption(emoji: '😣', label: 'Căng thẳng', color: Color(0xFFFFEBEC)),
 ];
 
+List<String> getSymptomOptions(BuildContext context) => [
+  context.tr('symptom_neck'),
+  context.tr('symptom_headache'),
+  context.tr('symptom_unfocused'),
+  context.tr('symptom_insomnia'),
+  context.tr('symptom_none'),
+];
+
+// Kept for compatibility
 const List<String> kSymptomOptions = [
   'Mỏi cổ vai',
   'Đau đầu nhẹ',
@@ -35,21 +53,21 @@ class JournalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Nhật ký sức khỏe',
-          style: TextStyle(
+          context.tr('health_journal_title'),
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
             color: AppColors.textPrimary,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
-          'Ghi nhanh trạng thái cơ thể và tinh thần để theo dõi tiến triển.',
-          style: TextStyle(
+          context.tr('journal_header_subtitle'),
+          style: const TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,
           ),
@@ -85,10 +103,10 @@ class JournalSectionHeader extends StatelessWidget {
         Flexible(
           child: Text(
             actionLabel,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+              color: Color(AppColors.primaryHex),
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -144,9 +162,9 @@ class JournalHydrationCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Nước đã uống hôm nay',
-                  style: TextStyle(
+                Text(
+                  context.tr('water_consumed_today'),
+                  style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
@@ -214,9 +232,9 @@ class JournalEnergyCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Mức năng lượng hiện tại',
-                style: TextStyle(
+              Text(
+                context.tr('current_energy_level'),
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
                 ),
@@ -227,15 +245,15 @@ class JournalEnergyCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primarySurface,
+                  color: Color(AppColors.primarySurfaceHex),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${(energyLevel * 100).round()}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
+                    color: Color(AppColors.primaryHex),
                   ),
                 ),
               ),
@@ -245,10 +263,10 @@ class JournalEnergyCard extends StatelessWidget {
           SliderTheme(
             data: SliderThemeData(
               trackHeight: 8,
-              activeTrackColor: AppColors.primary,
-              inactiveTrackColor: AppColors.primary.withValues(alpha: 0.12),
-              thumbColor: AppColors.primary,
-              overlayColor: AppColors.primary.withValues(alpha: 0.1),
+              activeTrackColor: Color(AppColors.primaryHex),
+              inactiveTrackColor: Color(AppColors.primaryHex).withValues(alpha: 0.12),
+              thumbColor: Color(AppColors.primaryHex),
+              overlayColor: Color(AppColors.primaryHex).withValues(alpha: 0.1),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
             ),
             child: Slider(
@@ -287,12 +305,12 @@ class JournalRoundIconButton extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: isPrimary ? AppColors.primary : AppColors.primarySurface,
+          color: isPrimary ? Color(AppColors.primaryHex) : Color(AppColors.primarySurfaceHex),
           shape: BoxShape.circle,
           boxShadow: isPrimary
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
+                    color: Color(AppColors.primaryHex).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -303,7 +321,7 @@ class JournalRoundIconButton extends StatelessWidget {
           assetPath: gifAssetPath,
           fallbackIcon: icon,
           size: 20,
-          fallbackColor: isPrimary ? Colors.white : AppColors.primary,
+          fallbackColor: isPrimary ? Colors.white : Color(AppColors.primaryHex),
         ),
       ),
     );

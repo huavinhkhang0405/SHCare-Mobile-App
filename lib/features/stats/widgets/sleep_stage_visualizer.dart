@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_localizations.dart';
 import '../../home/providers/health_provider.dart';
 
 class SleepStageVisualizer extends StatelessWidget {
@@ -23,18 +24,18 @@ class SleepStageVisualizer extends StatelessWidget {
     final lightPercent = (1.0 - deepPercent - awakePercent - remPercent).clamp(0.05, 0.90);
 
     final dynamicStages = [
-      _SleepStage('Thức', awakePercent, const Color(0xFF93D0F5)),
-      _SleepStage('Ngủ nông', lightPercent, const Color(0xFF6CB4E0)),
-      _SleepStage('Ngủ sâu', deepPercent, const Color(0xFF2C5C84)),
-      _SleepStage('REM', remPercent, const Color(0xFF4A7FA8)),
+      _SleepStage(context.tr('sleep_stage_awake'), awakePercent, const Color(0xFF93D0F5)),
+      _SleepStage(context.tr('sleep_stage_light'), lightPercent, const Color(0xFF6CB4E0)),
+      _SleepStage(context.tr('sleep_stage_deep'), deepPercent, const Color(0xFF2C5C84)),
+      _SleepStage(context.tr('sleep_stage_rem'), remPercent, const Color(0xFF4A7FA8)),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Chất lượng Giấc ngủ',
-          style: TextStyle(
+        Text(
+          context.tr('sleep_quality_title'),
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
@@ -42,7 +43,7 @@ class SleepStageVisualizer extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '${healthData.sleepDurationLabel} · Chất lượng ${healthData.sleepQuality}',
+          '${healthData.sleepDurationLabel} · ${context.tr('sleep_quality_title')} ${healthData.sleepQuality}',
           style: const TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,

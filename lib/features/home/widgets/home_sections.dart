@@ -11,6 +11,7 @@ import '../../../core/widgets/user_avatar.dart';
 import '../../../utils/date_formatter.dart';
 import '../../../models/home_plan_item.dart';
 import '../../../models/recent_activity.dart';
+import '../../../core/config/app_localizations.dart';
 
 class HomeTopGreeting extends StatefulWidget {
   const HomeTopGreeting({
@@ -53,7 +54,7 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final greeting = DateFormatter.greetingVi(_now);
+    final greeting = DateFormatter.greeting(_now, context);
     final currentTime = DateFormatter.formatHourMinute(_now);
     
     final auth = context.watch<AuthProvider>();
@@ -77,7 +78,10 @@ class _HomeTopGreetingState extends State<HomeTopGreeting> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Bây giờ là $currentTime, bạn có $totalPending mục tiêu sức khỏe cần hoàn thành hôm nay.',
+                context.tr('home_greeting_subtitle', arguments: {
+                  'time': currentTime,
+                  'count': totalPending.toString(),
+                }),
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -195,9 +199,9 @@ class _HomeDailySummaryCardState extends State<HomeDailySummaryCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Tổng quan hôm nay',
-                style: TextStyle(
+              Text(
+                context.tr('today_overview'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -213,7 +217,7 @@ class _HomeDailySummaryCardState extends State<HomeDailySummaryCard> {
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
-                  DateFormatter.formatDayMonthWithWeekday(_now),
+                  DateFormatter.formatDayMonthWithWeekday(_now, context),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -225,7 +229,7 @@ class _HomeDailySummaryCardState extends State<HomeDailySummaryCard> {
           ),
           const SizedBox(height: 14),
           Text(
-            '${widget.steps} bước',
+            context.tr('steps_count', arguments: {'count': widget.steps.toString()}),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -235,7 +239,10 @@ class _HomeDailySummaryCardState extends State<HomeDailySummaryCard> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Còn ${widget.remainingSteps} bước để đạt mục tiêu ${widget.goal} bước.',
+            context.tr('steps_remaining_desc', arguments: {
+              'steps': widget.remainingSteps.toString(),
+              'goal': widget.goal.toString(),
+            }),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.88),
               fontSize: 13,
@@ -256,7 +263,9 @@ class _HomeDailySummaryCardState extends State<HomeDailySummaryCard> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '${(widget.progress * 100).round()}% hoàn thành',
+              context.tr('completed_percent', arguments: {
+                'percent': (widget.progress * 100).round().toString(),
+              }),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.95),
                 fontSize: 12,
@@ -393,16 +402,16 @@ class HomeSleepHighlightCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Giấc ngủ đêm qua',
-                      style: TextStyle(
+                    Text(
+                      context.tr('last_night_sleep'),
+                      style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${healthData.sleepDurationLabel} · Chất lượng ${healthData.sleepQuality}',
+                      '${healthData.sleepDurationLabel} · ${context.tr('sleep_quality_title').toLowerCase()} ${context.tr(healthData.sleepQuality == 'Rất tốt' ? 'very_good' : healthData.sleepQuality == 'Tốt' ? 'good' : healthData.sleepQuality == 'Tạm ổn' ? 'fair' : 'poor')}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -461,6 +470,21 @@ class HomeSectionHeader extends StatelessWidget {
   }
 }
 
+String _getLocalizedPlanTitle(BuildContext context, HomePlanItem item) {
+  final key = '${item.id}_title';
+  final trans = context.tr(key);
+  return trans == key ? item.title : trans;
+}
+
+String _getLocalizedPlanSub(BuildContext context, HomePlanItem item) {
+  if (item.isCompleted) {
+    return context.tr('completed_label');
+  }
+  final key = '${item.id}_sub';
+  final trans = context.tr(key);
+  return trans == key ? item.subtitle : trans;
+}
+
 class HomePlanListCard extends StatelessWidget {
   const HomePlanListCard({super.key});
 
@@ -479,10 +503,10 @@ class HomePlanListCard extends StatelessWidget {
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: AppColors.softShadow,
         ),
-        child: const Center(
+        child: Center(
           child: Text(
-            'Không có lịch trình chăm sóc hôm nay.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            context.tr('no_care_schedule_today'),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ),
       );
@@ -507,8 +531,8 @@ class HomePlanListCard extends StatelessWidget {
           return _HomePlanItem(
             id: item.id,
             time: item.time,
-            title: item.title,
-            subtitle: item.subtitle,
+            title: _getLocalizedPlanTitle(context, item),
+            subtitle: _getLocalizedPlanSub(context, item),
             gifAssetPath: item.isCompleted ? AppGifIcons.check : item.gifAssetPath,
             icon: _mapIconNameToIconData(item.iconName),
             iconColor: Color(int.parse(item.iconColorHex, radix: 16)),
@@ -635,6 +659,77 @@ class _HomePlanItem extends StatelessWidget {
   }
 }
 
+String getLocalizedTaskTitle(BuildContext context, String title) {
+  if (title == "Đi bộ thêm 500 bước trong 30 phút tới.") {
+    return context.tr('walk_500_steps_30m');
+  } else if (title == "Rời màn hình: Nhắm mắt thư giãn 5 phút.") {
+    return context.tr('screen_time_relax_5m');
+  } else if (title == "Đi bộ nhẹ nhàng 10 phút để tiêu hao năng lượng.") {
+    return context.tr('walk_10m_burn');
+  } else if (title == "Uống 1 ly nước 250ml trong 15 phút tới.") {
+    return context.tr('drink_250ml_15m');
+  } else if (title == "Hít thở sâu 2 phút và vươn vai nhẹ nhàng.") {
+    return context.tr('breathe_stretch_2m');
+  } else if (title == "Hoàn thành nốt mục tiêu vận động trong ngày.") {
+    return context.tr('complete_movement_goals');
+  } else if (title == "Đi bộ thêm 500 bước để chốt mục tiêu hôm nay.") {
+    return context.tr('walk_500_steps_complete');
+  } else if (title == "Uống nước đầu ngày") {
+    return context.tr('plan_water_morning_title');
+  } else if (title == "Đi bộ 15 phút") {
+    return context.tr('plan_walk_afternoon_title');
+  } else if (title == "Tập thở sâu 5 phút") {
+    return context.tr('plan_breath_evening_title');
+  }
+  return title;
+}
+
+String _getLocalizedActivityTitle(BuildContext context, String title) {
+  if (title == 'Hoàn thành lịch trình') {
+    return context.tr('act_title_completed_schedule');
+  } else if (title == 'Hủy hoàn thành') {
+    return context.tr('act_title_cancelled_schedule');
+  } else if (title == 'Đã cập nhật nước uống') {
+    return context.tr('act_title_updated_water');
+  } else if (title == 'Đã bớt nước uống') {
+    return context.tr('act_title_reduced_water');
+  } else if (title == 'Nhiệm vụ AI hoàn thành') {
+    return context.tr('act_title_ai_task_completed');
+  } else if (title == 'Ghi nhận bữa ăn AI') {
+    return context.tr('act_title_recorded_meal');
+  } else if (title == 'Đã xác nhận giấc ngủ') {
+    return context.tr('act_title_confirmed_sleep');
+  }
+  return title;
+}
+
+String _getLocalizedActivitySubtitle(BuildContext context, String title, String subtitle) {
+  if (title == 'Hoàn thành lịch trình') {
+    final inner = subtitle.replaceFirst('Đã thực hiện: ', '');
+    final localizedInner = getLocalizedTaskTitle(context, inner);
+    return context.tr('act_sub_performed_task', arguments: {'task': localizedInner});
+  } else if (title == 'Hủy hoàn thành') {
+    final inner = subtitle.replaceFirst('Đã hủy: ', '');
+    final localizedInner = getLocalizedTaskTitle(context, inner);
+    return context.tr('act_sub_cancelled_task', arguments: {'task': localizedInner});
+  } else if (title == 'Đã cập nhật nước uống') {
+    return context.tr('act_sub_updated_water_desc');
+  } else if (title == 'Đã bớt nước uống') {
+    return context.tr('act_sub_reduced_water_desc');
+  } else if (title == 'Nhiệm vụ AI hoàn thành') {
+    return getLocalizedTaskTitle(context, subtitle);
+  } else if (title == 'Đã xác nhận giấc ngủ') {
+    var sub = subtitle;
+    sub = sub.replaceFirst('Ngủ: ', '${context.tr('sleep_unit')}: ');
+    sub = sub.replaceFirst('Chất lượng Rất tốt', '${context.tr('sleep_quality_title')} ${context.tr('very_good')}');
+    sub = sub.replaceFirst('Chất lượng Tốt', '${context.tr('sleep_quality_title')} ${context.tr('good')}');
+    sub = sub.replaceFirst('Chất lượng Tạm ổn', '${context.tr('sleep_quality_title')} ${context.tr('fair')}');
+    sub = sub.replaceFirst('Chất lượng Kém', '${context.tr('sleep_quality_title')} ${context.tr('poor')}');
+    return sub;
+  }
+  return subtitle;
+}
+
 class HomeRecentActivityCard extends StatelessWidget {
   const HomeRecentActivityCard({super.key});
 
@@ -653,13 +748,13 @@ class HomeRecentActivityCard extends StatelessWidget {
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: AppColors.softShadow,
         ),
-        child: const Column(
+        child: Column(
           children: [
-            Icon(Icons.history_rounded, color: AppColors.textHint, size: 24),
-            SizedBox(height: 8),
+            const Icon(Icons.history_rounded, color: AppColors.textHint, size: 24),
+            const SizedBox(height: 8),
             Text(
-              'Chưa có hoạt động gần đây.',
-              style: TextStyle(
+              context.tr('no_recent_activities'),
+              style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
@@ -689,8 +784,8 @@ class HomeRecentActivityCard extends StatelessWidget {
           return _HomeActivityTile(
             gifAssetPath: act.gifAssetPath,
             icon: _mapIconNameToIconData(act.iconName),
-            title: act.title,
-            subtitle: act.subtitle,
+            title: _getLocalizedActivityTitle(context, act.title),
+            subtitle: _getLocalizedActivitySubtitle(context, act.title, act.subtitle),
             trailing: act.trailing,
           );
         }),
@@ -865,7 +960,7 @@ class ProfileActionsBottomSheet extends StatelessWidget {
           _buildOptionTile(
             context,
             icon: Icons.person_outline_rounded,
-            label: 'Thông tin cá nhân',
+            label: context.tr('personal_info'),
             color: AppColors.primary,
             onTap: () {
               Navigator.of(context).pop();
@@ -876,15 +971,15 @@ class ProfileActionsBottomSheet extends StatelessWidget {
           _buildOptionTile(
             context,
             icon: Icons.swap_horiz_rounded,
-            label: 'Chuyển tài khoản',
+            label: context.tr('switch_account'),
             color: AppColors.accent,
             onTap: () {
               Navigator.of(context).pop();
               _showConfirmDialog(
                 context,
-                title: 'Chuyển tài khoản',
-                content: 'Bạn có chắc chắn muốn đăng xuất để chuyển sang tài khoản khác?',
-                confirmLabel: 'Chuyển tài khoản',
+                title: context.tr('switch_account'),
+                content: context.tr('confirm_switch_account_desc'),
+                confirmLabel: context.tr('switch_account'),
                 confirmColor: AppColors.accent,
                 onConfirm: () async {
                   await auth.logout();
@@ -899,15 +994,15 @@ class ProfileActionsBottomSheet extends StatelessWidget {
           _buildOptionTile(
             context,
             icon: Icons.logout_rounded,
-            label: 'Đăng xuất',
+            label: context.tr('logout'),
             color: AppColors.error,
             onTap: () {
               Navigator.of(context).pop();
               _showConfirmDialog(
                 context,
-                title: 'Đăng xuất',
-                content: 'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?',
-                confirmLabel: 'Đăng xuất',
+                title: context.tr('logout'),
+                content: context.tr('confirm_logout_desc'),
+                confirmLabel: context.tr('logout'),
                 confirmColor: AppColors.error,
                 onConfirm: () async {
                   await auth.logout();
@@ -990,7 +1085,7 @@ class ProfileActionsBottomSheet extends StatelessWidget {
         content: Text(content),
         actions: [
           TextButton(
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: Text(context.tr('cancel'), style: const TextStyle(color: Colors.grey)),
             onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(

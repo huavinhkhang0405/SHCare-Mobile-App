@@ -1,15 +1,53 @@
 import 'package:flutter/material.dart';
 
+class DynamicPrimaryColor extends Color {
+  const DynamicPrimaryColor() : super(0xFF0FA87E);
+  @override
+  int get value => AppColors.primaryHex;
+}
+
+class DynamicPrimaryDarkColor extends Color {
+  const DynamicPrimaryDarkColor() : super(0xFF0C7A5C);
+  @override
+  int get value => AppColors.primaryDarkHex;
+}
+
+class DynamicPrimaryLightColor extends Color {
+  const DynamicPrimaryLightColor() : super(0xFF6FDCBA);
+  @override
+  int get value => AppColors.primaryLightHex;
+}
+
+class DynamicPrimarySurfaceColor extends Color {
+  const DynamicPrimarySurfaceColor() : super(0xFFE8FAF3);
+  @override
+  int get value => AppColors.primarySurfaceHex;
+}
+
 /// Hệ thống màu sắc thống nhất cho toàn bộ ứng dụng SHCare.
 /// Mọi màn hình đều tham chiếu file này để đảm bảo đồng bộ.
 class AppColors {
   AppColors._();
 
+  static int primaryHex = 0xFF0FA87E;
+  static int primaryDarkHex = 0xFF0C7A5C;
+  static int primaryLightHex = 0xFF6FDCBA;
+  static int primarySurfaceHex = 0xFFE8FAF3;
+
+  static void updatePrimaryColor(Color newPrimary) {
+    primaryHex = newPrimary.value;
+    final hsl = HSLColor.fromColor(newPrimary);
+    primaryDarkHex = hsl.withLightness((hsl.lightness - 0.1).clamp(0.0, 1.0)).toColor().value;
+    primaryLightHex = hsl.withLightness((hsl.lightness + 0.2).clamp(0.0, 1.0)).toColor().value;
+    primarySurfaceHex = hsl.withLightness(0.95).withSaturation(0.15).toColor().value;
+  }
+
   // ─── Brand / Primary ───────────────────────────────────────
-  static const Color primary = Color(0xFF0FA87E);
-  static const Color primaryDark = Color(0xFF0C7A5C);
-  static const Color primaryLight = Color(0xFF6FDCBA);
-  static const Color primarySurface = Color(0xFFE8FAF3);
+  static const Color primary = DynamicPrimaryColor();
+  static const Color primaryDark = DynamicPrimaryDarkColor();
+  static const Color primaryLight = DynamicPrimaryLightColor();
+  static const Color primarySurface = DynamicPrimarySurfaceColor();
+
 
   // ─── Accent / Secondary ────────────────────────────────────
   static const Color accent = Color(0xFF4A90D9);
@@ -49,17 +87,17 @@ class AppColors {
   static const Color navBarInactive = Color(0xFF8FA8A0);
 
   // ─── Gradient Presets ──────────────────────────────────────
-  static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF0FA87E), Color(0xFF06D6A0)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  static LinearGradient get primaryGradient => LinearGradient(
+        colors: [Color(primaryHex), Color(primaryLightHex)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
 
-  static const LinearGradient heroGradient = LinearGradient(
-    colors: [Color(0xFF0D9068), Color(0xFF0EC690)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  static LinearGradient get heroGradient => LinearGradient(
+        colors: [Color(primaryDarkHex), Color(primaryHex)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
 
   static const LinearGradient darkGradient = LinearGradient(
     colors: [Color(0xFF162033), Color(0xFF0D1420)],
@@ -70,7 +108,7 @@ class AppColors {
   // ─── Shadows ───────────────────────────────────────────────
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
-          color: const Color(0xFF0FA87E).withValues(alpha: 0.06),
+          color: primary.withValues(alpha: 0.06),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
