@@ -169,6 +169,15 @@ class HealthProvider extends ChangeNotifier {
   bool _shouldShowSleepConfirmation = false;
   DateTime? _sleepStartToConfirm;
   DateTime? _sleepWakeToConfirm;
+  DateTime? _confirmedSleepStart;
+  DateTime? _confirmedSleepWake;
+
+  // Baseline 24h hôm qua (Day 0 Baseline)
+  int _yesterdaySteps = 4000;
+  int _yesterdaySleepMinutes = 420; // 7 tiếng
+
+  int get yesterdaySteps => _yesterdaySteps;
+  int get yesterdaySleepMinutes => _yesterdaySleepMinutes;
 
   // Onboarding Giấc ngủ Tiệm tiến (Progressive Bedtime Onboarding)
   bool _hasOnboardedBedtime = false;
@@ -176,6 +185,8 @@ class HealthProvider extends ChangeNotifier {
 
   bool get hasOnboardedBedtime => _hasOnboardedBedtime;
   String? get onboardingBedtimeInsight => _onboardingBedtimeInsight;
+  DateTime? get confirmedSleepStart => _confirmedSleepStart;
+  DateTime? get confirmedSleepWake => _confirmedSleepWake;
 
   Future<void> setHasOnboardedBedtime(bool value) async {
     _hasOnboardedBedtime = value;
@@ -967,6 +978,9 @@ class HealthProvider extends ChangeNotifier {
       }
       _syncWaterProgress();
       await _saveWaterData();
+      if (_waterLiters >= 0.5) {
+        completeWaterPlanItem();
+      }
     }
 
     _simulateEnergyAndMood();
@@ -982,6 +996,9 @@ class HealthProvider extends ChangeNotifier {
     }
     _syncWaterProgress();
     _saveWaterData();
+    if (_waterLiters >= 0.5) {
+      completeWaterPlanItem();
+    }
     _simulateEnergyAndMood();
     _updateHealthScore();
     _refreshPetInsights();
@@ -1098,6 +1115,9 @@ class HealthProvider extends ChangeNotifier {
   void updateSteps(int newSteps) {
     _steps = newSteps;
     _saveStepsToPrefs();
+    if (_steps >= 1000) {
+      completeWalkPlanItem();
+    }
     _simulateEnergyAndMood();
     _updateHealthScore();
     _refreshPetInsights();
@@ -1175,6 +1195,16 @@ class HealthProvider extends ChangeNotifier {
       final screenTimeService = ScreenTimeService();
       final screenUsage = await screenTimeService.getSocialMediaUsageToday();
 
+      int streakCount = 0;
+      try {
+        final pet = await _petService.getPetData(_currentUserId);
+        if (pet != null) {
+          streakCount = pet.streakCount;
+        }
+      } catch (e) {
+        debugPrint('🚨 [HealthProvider] Lỗi khi lấy streakCount: $e');
+      }
+
       final tasks = await _geminiService.generateHealthTasks(
         steps: _steps,
         stepGoal: _goal,
@@ -1191,6 +1221,10 @@ class HealthProvider extends ChangeNotifier {
         targetBedtime: _currentUser?.targetBedtime,
         targetWakeTime: _currentUser?.targetWakeTime,
         taskHistory: taskHistory,
+        primaryHealthGoal: _currentUser?.primaryHealthGoal ?? 'Duy trì sức khỏe',
+        yesterdaySteps: _yesterdaySteps,
+        yesterdaySleepMinutes: _yesterdaySleepMinutes.toDouble(),
+        streakCount: streakCount,
       );
       // Đảm bảo luôn đúng 3 nhiệm vụ
       _aiTasks = tasks.take(3).toList();
@@ -1199,7 +1233,20 @@ class HealthProvider extends ChangeNotifier {
       _saveAiTasks();
       debugPrint('✅ [HealthProvider] Đã tạo ${_aiTasks.length} nhiệm vụ AI cho ngày mới');
     } catch (e) {
-      _aiTasksError = 'Không thể tải gợi ý AI: $e';
+      // API lỗi -> khôi phục từ backupTasks nếu có
+      final String? aiTasksStr = (await SharedPreferences.getInstance()).getString(_getKey('ai_tasks_json'));
+      if (aiTasksStr != null && aiTasksStr.isNotEmpty) {
+        try {
+          final List<dynamic> decoded = json.decode(aiTasksStr);
+          _aiTasks = decoded.map((item) => TaskSuggestion.fromJson(item as Map<String, dynamic>)).toList();
+          _aiTasksError = null;
+          debugPrint('⚠️ [HealthProvider] Gặp lỗi API ($e), tự động khôi phục nhiệm vụ cũ từ bản sao lưu.');
+        } catch (err) {
+          _aiTasksError = 'Không thể tải gợi ý AI: $e';
+        }
+      } else {
+        _aiTasksError = 'Không thể tải gợi ý AI: $e';
+      }
       debugPrint('🚨 [HealthProvider] Lỗi _generateDailyAiTasks: $e');
     }
 
@@ -1216,8 +1263,23 @@ class HealthProvider extends ChangeNotifier {
     final task = _aiTasks[index];
     if (task.isCompleted) return; // Tránh hoàn thành trùng lặp để gian lận EXP
 
+    // Validation dựa trên task.type
+    if (task.type == 'exercise') {
+      if (task.hasTargetStepsValidation && (_steps - task.startSteps) < task.targetSteps) {
+        throw Exception('Chưa đạt đủ số bước chân yêu cầu! (Cần ${task.targetSteps} bước)');
+      }
+    } else if (['rest', 'sleep', 'screen_free'].contains(task.type)) {
+      if (task.acceptedAt == null) {
+        throw Exception('Nhiệm vụ chưa được nhận!');
+      }
+      
+      if (task.hasRequiredDurationValidation && DateTime.now().difference(task.acceptedAt!) < task.requiredDuration) {
+        throw Exception('Chưa đủ thời gian thực hiện nhiệm vụ!');
+      }
+    }
+
     double streakMultiplier = 1.0;
-    int baseGold = 5;
+    int baseGold = 5; 
     if (task.expReward >= 50) {
       baseGold = 15;
     } else if (task.expReward >= 30) {
@@ -1250,6 +1312,21 @@ class HealthProvider extends ChangeNotifier {
     // Đánh dấu hoàn thành
     _aiTasks[index] = task.copyWith(isCompleted: true);
 
+    // Tự động đồng bộ sang Lịch trình chăm sóc (Care Plan)
+    final tTitle = task.title.toLowerCase();
+    final tDesc = task.description.toLowerCase();
+    final tType = task.type.toLowerCase();
+
+    if (tType == 'water' || tTitle.contains('nước') || tDesc.contains('nước')) {
+      completeWaterPlanItem();
+    }
+    if (tType == 'exercise' || tTitle.contains('bước') || tTitle.contains('đi bộ') || tDesc.contains('đi bộ')) {
+      completeWalkPlanItem();
+    }
+    if (tType == 'rest' || tTitle.contains('thở') || tTitle.contains('hít thở') || tDesc.contains('thở')) {
+      completeBreathPlanItem();
+    }
+
     // Cộng EXP local
     _currentExp += expGained;
     var didLevelUp = false;
@@ -1265,6 +1342,18 @@ class HealthProvider extends ChangeNotifier {
     // Cộng EXP và Vàng cho pet trên Firestore
     await _petService.gainExperience(_currentUserId, expGained, goldGained: goldGained);
     
+    // Cập nhật chuỗi (Streak) bằng cơ chế mới
+    try {
+      if (_currentUserId.isNotEmpty) {
+        final pet = await _petService.getPetData(_currentUserId);
+        if (pet != null) {
+          await _petService.updateStreakOnTaskCompleted(pet);
+        }
+      }
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi cập nhật Streak: $e');
+    }
+    
     final flashPrefix = isFlashQuestActive ? '[🔥 GIỜ VÀNG x2] ' : '';
     addRecentActivity(
       title: 'Nhiệm vụ AI hoàn thành',
@@ -1276,6 +1365,195 @@ class HealthProvider extends ChangeNotifier {
 
     _saveAiTasks();
     notifyListeners();
+  }
+
+  void _autoCompletePlanItem(String planId) {
+    final index = _planItems.indexWhere((p) => p.id == planId);
+    if (index == -1) return;
+    final item = _planItems[index];
+    if (item.isCompleted) return;
+
+    _planItems[index] = item.copyWith(
+      isCompleted: true,
+      subtitle: 'Hoàn thành (Tự động)',
+    );
+    _savePlanItems();
+
+    _currentExp += 10;
+    var didLevelUp = false;
+    if (_currentExp >= _expToNextLevel) {
+      _level++;
+      _currentExp -= _expToNextLevel;
+      didLevelUp = true;
+    }
+    _petTask = 'Hoàn thành "${item.title}"! +10 EXP';
+    _triggerPetEnvironmentEffect(didLevelUp: didLevelUp);
+    _petService.gainExperience(_currentUserId, 10);
+
+    addRecentActivity(
+      title: 'Tự động hoàn thành lịch trình',
+      subtitle: 'Đã thực hiện: ${item.title}',
+      trailing: item.time,
+      gifAssetPath: item.gifAssetPath,
+      iconName: item.iconName,
+    );
+    notifyListeners();
+  }
+
+  void completeWaterPlanItem() {
+    _autoCompletePlanItem('plan_water_morning');
+  }
+
+  void completeWalkPlanItem() {
+    _autoCompletePlanItem('plan_walk_afternoon');
+  }
+
+  void completeBreathPlanItem() {
+    _autoCompletePlanItem('plan_breath_evening');
+  }
+
+  Future<bool> acceptAiTask(String taskId) async {
+    final index = _aiTasks.indexWhere((t) => t.id == taskId);
+    if (index < 0) return false;
+
+    final task = _aiTasks[index];
+    if (task.isAccepted) return false;
+
+    // Chặn _steps == 0 đối với nhiệm vụ vận động
+    if (task.type == 'exercise' && _steps == 0) {
+      throw Exception('Vui lòng di chuyển để có ít nhất 1 bước chân trước khi nhận nhiệm vụ vận động (kích hoạt cảm biến).');
+    }
+
+    _aiTasks[index] = task.copyWith(
+      isAccepted: true,
+      acceptedAt: DateTime.now(),
+      startSteps: _steps,
+      startWater: _waterLiters,
+    );
+
+    await _saveAiTasks();
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> verifyScreenFreeTask(String taskId) async {
+    final index = _aiTasks.indexWhere((t) => t.id == taskId);
+    if (index < 0) return false;
+
+    final task = _aiTasks[index];
+    if (!task.isAccepted || task.isCompleted) return false;
+
+    final acceptedAt = task.acceptedAt;
+    if (acceptedAt == null) return false;
+
+    final now = DateTime.now();
+
+    if (Platform.isAndroid) {
+      try {
+        final appUsage = AppUsage();
+        final infoList = await appUsage.getAppUsage(acceptedAt, now);
+
+        final Map<String, String> targetApps = {
+          'com.facebook.katana': 'Facebook',
+          'com.zhiliaoapp.musically': 'TikTok',
+          'com.ss.android.ugc.trill': 'TikTok',
+          'com.google.android.youtube': 'YouTube',
+          'com.instagram.android': 'Instagram',
+          'com.tencent.ig': 'PUBG Mobile',
+          'com.garena.game.kgvn': 'Liên Quân Mobile',
+          'com.android.chrome': 'Chrome',
+          'com.coccoc.trinhduyet': 'Cốc Cốc',
+          'com.netflix.mediaclient': 'Netflix',
+        };
+
+        double totalUsageSeconds = 0;
+        for (var info in infoList) {
+          if (targetApps.containsKey(info.packageName)) {
+            totalUsageSeconds += info.usage.inSeconds;
+          }
+        }
+
+        // Nới lỏng dung sai AppUsage (180 giây) cho nhiệm vụ rời màn hình
+        if (totalUsageSeconds > 180) {
+          _aiTasks[index] = task.copyWith(
+            isAccepted: false,
+            acceptedAt: null,
+            startSteps: 0,
+            startWater: 0.0,
+          );
+          await _saveAiTasks();
+          notifyListeners();
+          throw Exception('Xác thực thất bại! Bạn đã sử dụng điện thoại $totalUsageSeconds giây (vượt quá dung sai 180 giây).');
+        }
+      } catch (e) {
+        debugPrint('🚨 [Anti-Cheat] Lỗi kiểm tra screen-free task usage: $e');
+      }
+    }
+
+    await completeAiTask(taskId);
+    return true;
+  }
+
+  void resetFailedTask(String taskId) {
+    final index = _aiTasks.indexWhere((t) => t.id == taskId);
+    if (index < 0) return;
+
+    final task = _aiTasks[index];
+    _aiTasks[index] = task.copyWith(
+      isAccepted: false,
+      acceptedAt: null,
+      startSteps: 0,
+      startWater: 0.0,
+    );
+    _saveAiTasks();
+    notifyListeners();
+  }
+
+  Future<bool> claimShareReward() async {
+    if (_currentUserId.isEmpty) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month}-${now.day}';
+      final lastShareDate = prefs.getString(_getKey('last_share_reward_date'));
+
+      if (lastShareDate == todayStr) {
+        debugPrint('🛡️ [ShareReward] Bạn đã nhận quà chia sẻ hôm nay rồi.');
+        return false;
+      }
+
+      await _petService.gainExperience(
+        _currentUserId,
+        0,
+        goldGained: 20,
+        customMessage: 'Cậu tuyệt lắm! Mọi người sẽ ngưỡng mộ cậu cho xem!',
+      );
+
+      await prefs.setString(_getKey('last_share_reward_date'), todayStr);
+      
+      addRecentActivity(
+        title: 'Chia sẻ thành tích',
+        subtitle: 'Khoe thẻ tự hào sức khỏe',
+        trailing: '+20 🪙',
+        gifAssetPath: 'assets/icons/gif/check.gif',
+        iconName: 'share_rounded',
+      );
+      
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('🚨 [HealthProvider] Lỗi khi nhận thưởng chia sẻ: $e');
+      return false;
+    }
+  }
+
+  Future<bool> hasClaimedShareRewardToday() async {
+    if (_currentUserId.isEmpty) return true;
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final todayStr = '${now.year}-${now.month}-${now.day}';
+    final lastShareDate = prefs.getString(_getKey('last_share_reward_date'));
+    return lastShareDate == todayStr;
   }
 
   /// Mua bùa đóng băng cho Pet
@@ -1356,6 +1634,9 @@ class HealthProvider extends ChangeNotifier {
           debugPrint('🚨 [HealthProvider] Lỗi khi lưu số bước chân: $e');
         }
         
+        if (_steps >= 1000) {
+          completeWalkPlanItem();
+        }
         _simulateEnergyAndMood();
         _updateHealthScore();
         _refreshPetInsights();
@@ -1427,6 +1708,16 @@ class HealthProvider extends ChangeNotifier {
         // Tải thông tin giấc ngủ đã lưu
         _sleepMinutes = prefs.getInt(_getKey('sleep_minutes')) ?? 465;
         _deepSleepMinutes = prefs.getInt(_getKey('deep_sleep_minutes')) ?? 198;
+        final startStr = prefs.getString(_getKey('confirmed_sleep_start'));
+        final wakeStr = prefs.getString(_getKey('confirmed_sleep_wake'));
+        if (startStr != null) _confirmedSleepStart = DateTime.tryParse(startStr);
+        if (wakeStr != null) _confirmedSleepWake = DateTime.tryParse(wakeStr);
+
+        // Tải thông tin hôm qua (với baseline Day 0)
+        final ySteps = prefs.getInt(_getKey('yesterday_steps')) ?? 0;
+        _yesterdaySteps = ySteps <= 0 ? 4000 : ySteps;
+        final ySleep = prefs.getInt(_getKey('yesterday_sleep_minutes')) ?? 0;
+        _yesterdaySleepMinutes = ySleep <= 0 ? 420 : ySleep;
 
         // Tải Plan Items và Recent Activities
         final String? planItemsStr = prefs.getString(_getKey('plan_items_json'));
@@ -1477,56 +1768,31 @@ class HealthProvider extends ChangeNotifier {
       debugPrint('🚨 [HealthProvider] Lỗi khi lưu lịch sử nhiệm vụ DDA: $e');
     }
 
-    // 2. Kiểm tra xem hôm qua có nhiệm vụ chưa hoàn thành không để phạt Pet mệt mỏi và tính toán Streak
+    // 2. Kiểm tra và xử lý gãy chuỗi / đóng băng bằng cơ chế mới
     try {
-      final String? aiTasksStr = prefs.getString(_getKey('ai_tasks_json'));
-      if (aiTasksStr != null && aiTasksStr.isNotEmpty) {
-        final List<dynamic> decoded = json.decode(aiTasksStr);
-        final previousTasks = decoded.map((item) => TaskSuggestion.fromJson(item as Map<String, dynamic>)).toList();
-        
-        if (previousTasks.isNotEmpty) {
-          final completedAny = previousTasks.any((t) => t.isCompleted);
-          if (_currentUserId.isNotEmpty) {
-            final pet = await _petService.getPetData(_currentUserId);
-            
-            if (pet != null) {
-              int newStreak = pet.streakCount;
-              int newFreeze = pet.streakFreezeCount;
-              String newState = pet.state;
-              String newMessage = pet.message;
-
-              if (completedAny) {
-                newStreak += 1;
-                newState = 'Vui vẻ';
-                newMessage = 'Cậu tuyệt vời quá! Hôm qua hoàn thành nhiệm vụ và hôm nay chuỗi ngày rèn luyện đã tăng lên 🔥 $newStreak ngày rồi!';
-              } else {
-                if (newFreeze > 0) {
-                  newFreeze -= 1;
-                  newState = 'Năng động';
-                  newMessage = 'Hôm qua cậu lỡ hẹn với mình, nhưng may mắn là mình đã sử dụng 1 Bùa Đóng Băng để giữ lại chuỗi ngày rèn luyện 🔥 $newStreak cho cậu!';
-                } else {
-                  newStreak = 0;
-                  newState = 'Mệt mỏi';
-                  newMessage = 'Hôm qua cậu bỏ dở nhiệm vụ sức khỏe làm mình uể oải và bị mất chuỗi ngày rèn luyện rồi...';
-                }
-              }
-              
-              await _petService.updateStreakAndFreeze(
-                _currentUserId,
-                newStreak: newStreak,
-                newFreeze: newFreeze,
-                newState: newState,
-                newMessage: newMessage,
-              );
-            }
-          }
+      if (_currentUserId.isNotEmpty) {
+        final pet = await _petService.getPetData(_currentUserId);
+        if (pet != null) {
+          await _petService.checkStreakBreakOnAppStart(pet);
         }
       }
     } catch (e) {
-      debugPrint('🚨 [HealthProvider] Lỗi khi cập nhật Streak ngày cũ: $e');
+      debugPrint('🚨 [HealthProvider] Lỗi khi check Streak break: $e');
     }
 
     // 3. Reset ngày mới
+    // Lưu chỉ số hôm qua trước khi reset
+    _yesterdaySteps = _steps;
+    _yesterdaySleepMinutes = _sleepMinutes;
+    await prefs.setInt(_getKey('yesterday_steps'), _yesterdaySteps);
+    await prefs.setInt(_getKey('yesterday_sleep_minutes'), _yesterdaySleepMinutes);
+
+    // Reset các mốc xác thực giấc ngủ
+    _confirmedSleepStart = null;
+    _confirmedSleepWake = null;
+    await prefs.remove(_getKey('confirmed_sleep_start'));
+    await prefs.remove(_getKey('confirmed_sleep_wake'));
+
     _isDailyTaskCompleted = false;
     _hasShownScreenTimeAlert = false;
     _steps = 0;
@@ -1789,9 +2055,11 @@ class HealthProvider extends ChangeNotifier {
         'com.netflix.mediaclient': 'Netflix',
       };
 
+      double totalUsageSeconds = 0;
       DateTime? latestForeground;
       for (var info in infoList) {
         if (targetApps.containsKey(info.packageName) && info.usage > Duration.zero) {
+          totalUsageSeconds += info.usage.inSeconds;
           final lastFore = info.lastForeground;
           if (lastFore.isAfter(start) && lastFore.isBefore(wake)) {
             if (latestForeground == null || lastFore.isAfter(latestForeground)) {
@@ -1801,11 +2069,11 @@ class HealthProvider extends ChangeNotifier {
         }
       }
 
-      if (latestForeground != null) {
+      if (totalUsageSeconds > 900 && latestForeground != null) {
         actualStart = latestForeground;
-        debugPrint('🛡️ [Anti-Cheat] Phát hiện dùng ứng dụng lướt web/mạng xã hội/game lúc $latestForeground. Dời mốc Actual Sleep Start thành: $actualStart');
+        debugPrint('🛡️ [Anti-Cheat] Phát hiện dùng mạng xã hội/game $totalUsageSeconds giây (vượt 900s). Dời mốc bắt đầu ngủ thành: $actualStart');
       } else {
-        debugPrint('🛡️ [Anti-Cheat] Không phát hiện gian lận. Mốc bắt đầu ngủ: $actualStart.');
+        debugPrint('🛡️ [Anti-Cheat] Không phát hiện gian lận vượt ngưỡng (Tổng sử dụng: $totalUsageSeconds giây). Mốc bắt đầu ngủ: $actualStart.');
       }
     } catch (e) {
       debugPrint('🚨 [Anti-Cheat] Lỗi truy vấn app_usage: $e');
@@ -1819,11 +2087,16 @@ class HealthProvider extends ChangeNotifier {
     _sleepMinutes = duration.inMinutes.clamp(0, 1440);
     _deepSleepMinutes = (_sleepMinutes * 0.23).round();
 
+    _confirmedSleepStart = start;
+    _confirmedSleepWake = wake;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_getKey('temp_sleep_start'));
       await prefs.setInt(_getKey('sleep_minutes'), _sleepMinutes);
       await prefs.setInt(_getKey('deep_sleep_minutes'), _deepSleepMinutes);
+      await prefs.setString(_getKey('confirmed_sleep_start'), start.toIso8601String());
+      await prefs.setString(_getKey('confirmed_sleep_wake'), wake.toIso8601String());
     } catch (e) {
       debugPrint('🚨 [HealthProvider] Lỗi lưu kết quả giấc ngủ: $e');
     }

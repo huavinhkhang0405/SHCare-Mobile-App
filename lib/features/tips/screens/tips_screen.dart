@@ -222,11 +222,41 @@ class _TipsScreenState extends State<TipsScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _AiTaskCard(
                       task: task,
-                      onComplete: task.isCompleted
+                      onAccept: task.isCompleted || task.isAccepted
                           ? null
-                          : () => context
-                              .read<HealthProvider>()
-                              .completeAiTask(task.id),
+                          : () async {
+                              final provider = context.read<HealthProvider>();
+                              final hasActive = provider.aiTasks.any((t) => t.isAccepted && !t.isCompleted);
+                              if (hasActive) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('🚨 Bạn đang có một thử thách chưa hoàn thành. Hãy hoàn thành hoặc hủy nó trước!'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              try {
+                                final success = await provider.acceptAiTask(task.id);
+                                if (success && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('⚔️ Đã nhận nhiệm vụ: ${task.title}. Bắt đầu rèn luyện!'),
+                                      backgroundColor: Colors.blueAccent,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('🚨 ${e.toString().replaceAll('Exception: ', '')}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                     ),
                   ),
                 ),
@@ -366,11 +396,11 @@ class _TipsScreenState extends State<TipsScreen> {
 // ─── AI Task Card Widget ──────────────────────────────────────
 class _AiTaskCard extends StatelessWidget {
   final TaskSuggestion task;
-  final VoidCallback? onComplete;
+  final VoidCallback? onAccept;
 
   const _AiTaskCard({
     required this.task,
-    required this.onComplete,
+    required this.onAccept,
   });
 
   static const Map<String, IconData> _typeIcons = {
@@ -537,48 +567,7 @@ class _AiTaskCard extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!task.isCompleted)
-                            GestureDetector(
-                              onTap: onComplete,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFD7B56D),
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFD7B56D)
-                                          .withValues(alpha: 0.3),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.check_rounded,
-                                      size: 12,
-                                      color: Colors.black87,
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      context.tr('completed_label'),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
+                          if (task.isCompleted)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10,
@@ -607,6 +596,78 @@ class _AiTaskCard extends StatelessWidget {
                                     ),
                                   ),
                                 ],
+                              ),
+                            )
+                          else if (task.isAccepted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3), width: 1.0),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.hourglass_empty_rounded,
+                                    size: 12,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    context.tr('doing_label'),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.blueAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            GestureDetector(
+                              onTap: onAccept,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD7B56D),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFD7B56D)
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.add_rounded,
+                                      size: 12,
+                                      color: Colors.black87,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      context.tr('accept_challenge_label'),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                         ],

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/services.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shcare_app/models/pet_model.dart';
+import 'package:flutter/foundation.dart';
 
 class PetService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -123,7 +124,7 @@ class PetService {
   }
 
   // 2. Logic cộng EXP khi làm nhiệm vụ sức khoẻ
-  Future<void> gainExperience(String userId, int expGained, {int goldGained = 0}) async {
+  Future<void> gainExperience(String userId, int expGained, {int goldGained = 0, String? customMessage}) async {
     // Đảm bảo quotes đã được load trước khi xử lý logic
     await _loadQuotesIfNeeded();
 
@@ -160,11 +161,11 @@ class PetService {
         nextLevelExp = (nextLevelExp * 1.5).round(); 
       }
 
-      // Lấy ngẫu nhiên 1 câu nói từ Cache
+      // Lấy ngẫu nhiên 1 câu nói từ Cache hoặc dùng customMessage
       final random = Random();
-      String randomMessage = _cachedCompletedQuotes.isNotEmpty
+      String randomMessage = customMessage ?? (_cachedCompletedQuotes.isNotEmpty
           ? _cachedCompletedQuotes[random.nextInt(_cachedCompletedQuotes.length)]
-          : "Tuyệt vời lắm!";
+          : "Tuyệt vời lắm!");
 
       final updatedPet = pet.copyWith(
         currentExp: newExp,
@@ -172,7 +173,7 @@ class PetService {
         expToNextLevel: nextLevelExp,
         goldCoins: newGold,
         state: newState,
-        message: randomMessage, // Cập nhật câu nói từ JSON vào đây
+        message: randomMessage, // Cập nhật câu nói vào đây
         isTaskCompleted: true, 
       );
 
@@ -232,6 +233,7 @@ class PetService {
     String userId, {
     required int newStreak,
     required int newFreeze,
+    DateTime? newLastStreakUpdateDate,
     String? newState,
     String? newMessage,
   }) async {
@@ -246,6 +248,14 @@ class PetService {
         'streak_count': newStreak,
         'streak_freeze_count': newFreeze,
       };
+      // For clearing the date, we can use FieldValue.delete() if it's null, but since it's just a string in json, we can pass null or delete it.
+      // Wait, let's just pass the ISO string or null.
+      if (newLastStreakUpdateDate != null) {
+        updates['last_streak_update_date'] = newLastStreakUpdateDate.toIso8601String();
+      } else {
+        updates['last_streak_update_date'] = FieldValue.delete();
+      }
+
       if (newState != null) updates['state'] = newState;
       if (newMessage != null) updates['message'] = newMessage;
 
@@ -255,6 +265,86 @@ class PetService {
       print("🚨 Lỗi updateStreakAndFreeze: $e");
     }
   }
+
+  /// Kiểm tra và xử lý gãy chuỗi / sử dụng Bùa đóng băng mỗi khi mở app
+  Future<void> checkStreakBreakOnAppStart(PetModel pet) async {
+    final now = DateTime.now();
+    final lastUpdate = pet.lastStreakUpdateDate;
+
+    // Nếu chưa từng có dữ liệu hoặc streakCount đang là 0 thì không cần check gãy chuỗi
+    if (lastUpdate == null || pet.streakCount == 0) return;
+
+    // Chỉ so sánh theo "Ngày" (tính mốc 0h00)
+    final today = DateTime(now.year, now.month, now.day);
+    final lastUpdateDay = DateTime(lastUpdate.year, lastUpdate.month, lastUpdate.day);
+
+    // Tính khoảng cách ngày
+    final differenceInDays = today.difference(lastUpdateDay).inDays;
+
+    // Nếu khoảng cách > 1 ngày (có nghĩa là có ngày không làm gì)
+    if (differenceInDays > 1) {
+      int newStreakCount = pet.streakCount;
+      int newFreezeCount = pet.streakFreezeCount;
+      DateTime? newUpdateDate = lastUpdate;
+
+      final missedDays = differenceInDays - 1;
+
+      if (newFreezeCount >= missedDays) {
+        // Đủ bùa đóng băng -> Trừ bùa theo số ngày nghỉ, giữ nguyên chuỗi
+        newFreezeCount -= missedDays;
+        // Dời ngày cập nhật cuối cùng sang "Hôm qua" để cứu chuỗi
+        newUpdateDate = today.subtract(const Duration(days: 1));
+        
+        debugPrint('❄️ Đã sử dụng $missedDays Bùa Đóng Băng để cứu chuỗi!');
+      } else {
+        // Không đủ bùa đóng băng -> Gãy chuỗi
+        newStreakCount = 0;
+        // Đặt thành null để task đầu tiên hôm nay làm sẽ được tính là chuỗi ngày 1
+        newUpdateDate = null; 
+
+        debugPrint('💔 Rất tiếc, bạn đã mất chuỗi rèn luyện do nghỉ $missedDays ngày nhưng chỉ có $newFreezeCount bùa.');
+      }
+
+      await updateStreakAndFreeze(
+        pet.userId,
+        newStreak: newStreakCount,
+        newFreeze: newFreezeCount,
+        newLastStreakUpdateDate: newUpdateDate,
+      );
+    }
+  }
+
+  /// Cập nhật Chuỗi khi người dùng hoàn thành 1 nhiệm vụ
+  Future<void> updateStreakOnTaskCompleted(PetModel pet) async {
+    final now = DateTime.now();
+    
+    // Nếu chưa từng có lastStreakUpdateDate, coi như chưa cập nhật hôm nay
+    final lastUpdate = pet.lastStreakUpdateDate; 
+
+    // Kiểm tra xem ngày cập nhật cuối cùng CÓ PHẢI là hôm nay hay không (bỏ qua giờ/phút/giây)
+    final isUpdatedToday = lastUpdate != null && 
+        lastUpdate.year == now.year && 
+        lastUpdate.month == now.month && 
+        lastUpdate.day == now.day;
+
+    if (!isUpdatedToday) {
+      // Nếu không phải hôm nay => Lần đầu tiên hoàn thành nhiệm vụ trong ngày
+      final newStreakCount = pet.streakCount + 1;
+      final newUpdateDate = now;
+
+      await updateStreakAndFreeze(
+        pet.userId,
+        newStreak: newStreakCount,
+        newFreeze: pet.streakFreezeCount,
+        newLastStreakUpdateDate: newUpdateDate,
+      );
+
+      debugPrint('🔥 Streak tăng lên: $newStreakCount');
+    } else {
+      debugPrint('ℹ️ Streak hôm nay đã được cộng rồi, không cộng thêm.');
+    }
+  }
+
 
   // 6. Lấy dữ liệu Pet một lần (không dùng Stream)
   Future<PetModel?> getPetData(String userId) async {

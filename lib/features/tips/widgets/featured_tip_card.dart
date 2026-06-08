@@ -12,6 +12,7 @@ class FeaturedTipCard extends StatelessWidget {
     required this.gifAssetPath,
     required this.icon,
     this.badge = 'NỔI BẬT',
+    this.onPressed,
   });
 
   final String title;
@@ -20,6 +21,7 @@ class FeaturedTipCard extends StatelessWidget {
   final String gifAssetPath;
   final IconData icon;
   final String badge;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +86,7 @@ class FeaturedTipCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
-                  onPressed: () {},
+                  onPressed: onPressed,
                   style: FilledButton.styleFrom(
                     backgroundColor: Color(AppColors.primaryDarkHex),
                     foregroundColor: Colors.white,
